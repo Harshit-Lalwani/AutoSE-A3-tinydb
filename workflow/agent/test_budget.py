@@ -26,3 +26,17 @@ except agent.BudgetExceeded:
     pass
 assert agent.BUDGET["used"] == 1000  # refused call was never sent
 print("budget ok")
+
+
+def test_design_check_records_unknown_symbols_as_new(tmp_path):
+    import checks
+    (tmp_path / "tinydb").mkdir()
+    (tmp_path / "tinydb" / "operations.py").write_text("def add(field, n):\n    pass\n")
+    text = '```json\n{"files": [{"path": "tinydb/operations.py", "symbols": ["add", "append"]}]}\n```'
+    ok, problems, data = checks.check_design(text, tmp_path)
+    assert ok, problems
+    assert data["files"][0]["symbols"] == ["add"]
+    assert data["files"][0]["new_symbols"] == ["append"]
+    ok, problems, _ = checks.check_design('```json\n{"files": [{"path": "tinydb/nope.py", "symbols": ["x"]}]}\n```',
+                                          tmp_path)
+    assert not ok
