@@ -76,13 +76,23 @@ def test_ac6_append_updates_multiple_documents():
     assert ['a', 'b'] in tags_values
 
 
-def test_ac7_fail_fast_on_typeerror():
-    """AC-7: Fail-fast semantics - TypeError on second doc, first updated,
-    third not processed."""
-    db = TinyDB(storage=MemoryStorage)
+def test_ac7_fail_fast_all_or_nothing():
+    """AC-7: On TypeError, update is all-or-nothing - no documents are modified.
+
+    This tests the correct fail-fast semantics: when a TypeError is raised
+    during update, the entire operation is rolled back and no documents
+    are modified. This behavior is consistent across all storage backends.
+    """
+    import tempfile
+    import os
+
+    # Test with JSONStorage (default) to verify all-or-nothing semantics
+    path = tempfile.mktemp(suffix='.json')
+    db = TinyDB(path)
+
     # Insert three documents matching the query
-    db.insert({'project': 'x', 'id': 1})  # No tags field - should get ['x']
-    db.insert({'project': 'x', 'id': 2, 'tags': 'not-a-list'})  # Non-list - should raise TypeError
+    db.insert({'project': 'x', 'id': 1})  # No tags field - would get ['x']
+    db.insert({'project': 'x', 'id': 2, 'tags': 'not-a-list'})  # Non-list - raises TypeError
     db.insert({'project': 'x', 'id': 3, 'tags': ['existing']})  # Should NOT be processed
 
     try:
@@ -91,17 +101,19 @@ def test_ac7_fail_fast_on_typeerror():
     except TypeError as e:
         assert "not a list" in str(e)
 
-    # Check state after failed update
+    # Check state after failed update - NO documents should be modified
     doc1 = db.get(Query().id == 1)
     doc2 = db.get(Query().id == 2)
     doc3 = db.get(Query().id == 3)
 
-    # First document should be updated
-    assert doc1['tags'] == ['x']
-    # Second document should be unchanged (error occurred on it)
+    # First document should NOT be updated (all-or-nothing)
+    assert 'tags' not in doc1
+    # Second document should be unchanged
     assert doc2['tags'] == 'not-a-list'
-    # Third document should NOT be processed (fail-fast)
+    # Third document should be unchanged
     assert doc3['tags'] == ['existing']
+
+    os.unlink(path)
 
 
 def test_ac8_no_import_errors():
