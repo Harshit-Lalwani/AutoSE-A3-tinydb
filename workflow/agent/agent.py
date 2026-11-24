@@ -137,6 +137,9 @@ def run_agent(role: str, model_role: str, system: str, user: str, tools: list[st
               max_tokens: int = 8000) -> AgentResult:
     client = ModelClient(model_role)
     tool_specs = [TOOLS[t] for t in tools] or None
+    if tool_specs:  # tell the agent its budget so it stops exploring in time (ADR-013)
+        system += (f"\n\nYou can make at most {max_steps - 1} tool calls. Stop exploring early enough to "
+                   "write your complete final answer, and give it as plain text, not as a tool call.")
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     res = AgentResult(final="", steps=0)
     log = log_path.open("a")
@@ -150,8 +153,9 @@ def run_agent(role: str, model_role: str, system: str, user: str, tools: list[st
         over_budget = res.steps >= max_steps or (res.prompt_tokens + res.completion_tokens) > max_total_tokens
         if over_budget and tool_specs:
             res.stopped_reason = "budget"
-            messages.append({"role": "user", "content": "Your step budget is used up. Do not call tools. "
-                                                        "Reply now with your final answer in the required format."})
+            messages.append({"role": "user", "content": "Your step budget is used up. Do not call tools and do not write "
+                                                        "tool-call syntax. Reply now with your complete final answer "
+                                                        "as plain text in the required format."})
             r = client.chat(messages, tools=None, max_tokens=max_tokens)
         else:
             r = client.chat(messages, tools=tool_specs, max_tokens=max_tokens)

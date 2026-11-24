@@ -76,9 +76,10 @@ def check_design(text: str, ws: Path):
         symbols = f.get("symbols") or []
         if not symbols and not f.get("new_symbols"):
             problems.append(f"{path}: no functions or classes named")
-        for s in symbols:
-            if not symbol_defined(src, s):
-                problems.append(f"{path}: symbol {s!r} not found (mark it under 'new_symbols' if it is new)")
+        # ADR-013: a symbol not defined in the file is a function the plan adds; record it as new
+        # instead of rejecting the plan (the agent kept listing new helpers under "symbols").
+        f["symbols"] = [s for s in symbols if symbol_defined(src, s)]
+        f["new_symbols"] = list(f.get("new_symbols") or []) + [s for s in symbols if not symbol_defined(src, s)]
     return not problems, problems, data
 
 

@@ -156,7 +156,8 @@ class Run:
                 return
             self.log_stage("design", False, "; ".join(problems), res, t0, attempt)
             feedback = ("\n\nYour previous design failed the automatic check:\n- " + "\n- ".join(problems) +
-                        "\nGive the whole design.md again with these fixed.")
+                        "\nThere is no design.md file: your final reply IS design.md. Reply with the complete "
+                        "design.md text again (all sections and the final json block), with these fixed.")
         self.write("design.md", res.final + "\n\n## Why this stage stopped\n\n" + "\n".join(f"- {p}" for p in problems))
         raise Stop("design check failed: " + "; ".join(problems))
 
