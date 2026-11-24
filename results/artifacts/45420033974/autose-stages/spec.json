@@ -1,0 +1,122 @@
+{
+  "summary": "Make TinyDB's update() and remove() accept string document IDs by converting them to integers, matching the existing behaviour of get() and contains(). Non-existent IDs are skipped; unparseable strings raise ValueError.",
+  "issue_type": "bug",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a database with documents [{'a': 1}, {'a': 2}, {'a': 3}] having doc_ids 1, 2, 3",
+      "when": "calling db.update({'a': 10}, doc_ids=['1', '2'])",
+      "then": "the call returns [1, 2] and the stored documents become [{'a': 10}, {'a': 10}, {'a': 3}]"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1",
+      "given": "a database with documents [{'a': 1}, {'a': 2}]",
+      "when": "calling db.update({'b': 5}, doc_ids=['2', '999']) where 999 does not exist",
+      "then": "the call returns [2] and only doc_id 2 is updated to {'a': 2, 'b': 5}"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-1",
+      "given": "a database with documents [{'a': 1}]",
+      "when": "calling db.update({'a': 99}, doc_ids=[]) with an empty list",
+      "then": "the call returns [] and no documents are modified"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-2",
+      "given": "a database with documents [{'a': 1}, {'a': 2}, {'a': 3}] having doc_ids 1, 2, 3",
+      "when": "calling db.remove(doc_ids=['2', '3'])",
+      "then": "the call returns [2, 3] and the remaining document is [{'a': 1}]"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-2",
+      "given": "a database with documents [{'a': 1}, {'a': 2}]",
+      "when": "calling db.remove(doc_ids=['1', '999']) where 999 does not exist",
+      "then": "the call returns [1] and only doc_id 1 is removed, leaving [{'a': 2}]"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-2",
+      "given": "a database with documents [{'a': 1}]",
+      "when": "calling db.remove(doc_ids=[]) with an empty list",
+      "then": "the call returns [] and no documents are removed"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "FR-3",
+      "given": "a database with documents [{'a': 1}, {'a': 2}]",
+      "when": "calling db.update({'a': 10}, doc_id='1')",
+      "then": "the call returns [1] and the first document becomes {'a': 10}"
+    },
+    {
+      "id": "AC-8",
+      "requirement": "FR-3",
+      "given": "a database with documents [{'a': 1}, {'a': 2}]",
+      "when": "calling db.remove(doc_id='2')",
+      "then": "the call returns [2] and the second document is removed, leaving [{'a': 1}]"
+    },
+    {
+      "id": "AC-9",
+      "requirement": "FR-5",
+      "given": "a database with documents [{'a': 1}]",
+      "when": "calling db.update({'a': 2}, doc_ids=[999]) with a non-existent integer ID",
+      "then": "the call returns [] and the document is unchanged"
+    },
+    {
+      "id": "AC-10",
+      "requirement": "FR-5",
+      "given": "a database with documents [{'a': 1}]",
+      "when": "calling db.remove(doc_ids=[999]) with a non-existent integer ID",
+      "then": "the call returns [] and the document is unchanged"
+    },
+    {
+      "id": "AC-11",
+      "requirement": "FR-6",
+      "given": "a database with documents [{'a': 1}]",
+      "when": "calling db.update({'a': 2}, doc_ids=['abc'])",
+      "then": "the call raises ValueError and the document is unchanged"
+    },
+    {
+      "id": "AC-12",
+      "requirement": "FR-6",
+      "given": "a database with documents [{'a': 1}]",
+      "when": "calling db.remove(doc_ids=['1.5'])",
+      "then": "the call raises ValueError and the document is unchanged"
+    },
+    {
+      "id": "AC-13",
+      "requirement": "NFR-1",
+      "given": "a database with documents [{'a': 1}, {'a': 2}]",
+      "when": "calling db.update({'a': 10}, doc_ids=[1]) with an integer ID",
+      "then": "the call returns [1] and the first document becomes {'a': 10} (unchanged behaviour)"
+    },
+    {
+      "id": "AC-14",
+      "requirement": "NFR-2",
+      "given": "a database with documents [{'a': 1}, {'a': 2}]",
+      "when": "calling db.get(doc_ids=['1']) and db.contains(doc_id='2')",
+      "then": "both work as before, returning [{'a': 1}] and True respectively"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "Maintainer accepts making update() and remove() consistent with get()/contains() for string IDs",
+      "default_used": "Yes - implement string ID support"
+    },
+    {
+      "id": "A-2",
+      "assumption": "Unparseable strings (e.g., 'abc', '1.5') raise ValueError, matching Python's int() behaviour",
+      "default_used": "ValueError"
+    },
+    {
+      "id": "A-3",
+      "assumption": "get() and contains() raise ValueError for unparseable strings",
+      "default_used": "ValueError (consistency target)"
+    }
+  ],
+  "blocking_questions": []
+}

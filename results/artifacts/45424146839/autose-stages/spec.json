@@ -1,0 +1,105 @@
+{
+  "summary": "Add optional sort, limit, and offset parameters to TinyDB's search() method for server-side ordering and paging of query results.",
+  "issue_type": "feature",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a table with documents {'name': 'Bob', 'age': 30}, {'name': 'Alice', 'age': 25}, {'name': 'Carol', 'age': 35}",
+      "when": "db.search(Query().age > 20, sort=[('age', 1)])",
+      "then": "returns documents ordered by age ascending: Alice (25), Bob (30), Carol (35)"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1",
+      "given": "same table",
+      "when": "db.search(Query().age > 20, sort=[('age', -1)])",
+      "then": "returns documents ordered by age descending: Carol (35), Bob (30), Alice (25)"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-1",
+      "given": "documents with nested field {'user': {'name': 'Bob', 'score': 10}}, {'user': {'name': 'Alice', 'score': 20}}",
+      "when": "db.search(Query().user.score > 5, sort=[('user.score', 1)])",
+      "then": "returns Alice first, then Bob (dot-notation field path works)"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-2",
+      "given": "table with 5 matching documents",
+      "when": "db.search(Query().active == True, limit=3)",
+      "then": "returns exactly 3 documents"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-2",
+      "given": "table with 2 matching documents",
+      "when": "db.search(Query().active == True, limit=10)",
+      "then": "returns both documents (no error)"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-3",
+      "given": "table with documents [A, B, C, D, E] matching query",
+      "when": "db.search(query, offset=2, limit=2)",
+      "then": "returns [C, D] (skips first 2, takes next 2)"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "FR-3",
+      "given": "table with 3 matching documents",
+      "when": "db.search(query, offset=10)",
+      "then": "returns empty list"
+    },
+    {
+      "id": "AC-8",
+      "requirement": "FR-4",
+      "given": "documents [{'x': 3}, {'x': 1}, {'x': 2}]",
+      "when": "db.search(Query().x > 0, sort=[('x', 1)], limit=2, offset=1)",
+      "then": "returns [{'x': 2}, {'x': 3}] (sort applied before limit/offset)"
+    },
+    {
+      "id": "AC-9",
+      "requirement": "FR-5",
+      "given": "any table",
+      "when": "db.search(query, sort='invalid')",
+      "then": "raises TypeError"
+    },
+    {
+      "id": "AC-10",
+      "requirement": "FR-6",
+      "given": "any table",
+      "when": "db.search(query, limit=-1) or db.search(query, offset=-1)",
+      "then": "raises ValueError"
+    },
+    {
+      "id": "AC-11",
+      "requirement": "FR-7",
+      "given": "table with 2 matching documents",
+      "when": "db.search(query, offset=5)",
+      "then": "returns empty list"
+    },
+    {
+      "id": "AC-12",
+      "requirement": "NFR-1",
+      "given": "existing code calling db.search(Query().name == 'John')",
+      "when": "the same call is executed after the change",
+      "then": "returns identical results in identical order (insertion order) with no new parameters required"
+    },
+    {
+      "id": "AC-13",
+      "requirement": "NFR-2",
+      "given": "a TinyDB instance using CachingMiddleware(JSONStorage)",
+      "when": "search() is called with sort, limit, offset",
+      "then": "works without middleware changes and returns correct paged/sorted results"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "API uses search(query, sort=[('field', 1)], limit=10, offset=0) \u2014 optional keyword arguments on existing search() method",
+      "default_used": "minimal backward-compatible extension following Python conventions (Django, SQLAlchemy, PyMongo)"
+    }
+  ],
+  "blocking_questions": []
+}

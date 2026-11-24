@@ -1,0 +1,51 @@
+diff --git a/tinydb/queries.py b/tinydb/queries.py
+index e106c5d..0cc4764 100644
+--- a/tinydb/queries.py
++++ b/tinydb/queries.py
+@@ -329,6 +329,31 @@ class Query(QueryInstance):
+             ('>=', self._path, rhs)
+         )
+ 
++    def between(self, low: Any, high: Any) -> QueryInstance:
++        """
++        Test a dict value for being within a range (inclusive).
++
++        >>> Query().age.between(18, 65)
++
++        Matches documents where ``18 <= age <= 65``.
++
++        If ``low > high``, the query matches no documents (returns empty result).
++
++        :param low: The lower bound (inclusive)
++        :param high: The upper bound (inclusive)
++        """
++        # If low > high, return a query that always returns False but is still cacheable
++        if low > high:
++            return self._generate_test(
++                lambda value: False,
++                ('between', self._path, freeze(low), freeze(high))
++            )
++
++        return self._generate_test(
++            lambda value: low <= value <= high,
++            ('between', self._path, freeze(low), freeze(high))
++        )
++
+     def exists(self) -> QueryInstance:
+         """
+         Test for a dict where a provided key exists.
+@@ -369,7 +394,6 @@ class Query(QueryInstance):
+         :param regex: The regular expression to use for matching
+         :param flags: regex flags to pass to ``re.search``
+         """
+-
+         def test(value):
+             if not isinstance(value, str):
+                 return False
+@@ -532,4 +556,4 @@ def where(key: str) -> Query:
+     """
+     A shorthand for ``Query()[key]``
+     """
+-    return Query()[key]
++    return Query()[key]
+\ No newline at end of file

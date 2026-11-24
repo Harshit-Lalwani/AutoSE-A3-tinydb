@@ -1,0 +1,85 @@
+{
+  "summary": "Add an `append` operation to `tinydb.operations` that appends a value to a list field in matching documents, creating the field as a single-element list if missing, and raising TypeError if the field exists but is not a list.",
+  "issue_type": "feature",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "TinyDB is installed",
+      "when": "importing `from tinydb.operations import append`",
+      "then": "the import succeeds and `append` is callable"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-2",
+      "given": "a TinyDB instance `db`",
+      "when": "calling `append('tags', 'urgent')`",
+      "then": "it returns an operation object usable with `db.update`"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-3",
+      "given": "a database with a document `{'project': 'x'}` (no 'tags' field)",
+      "when": "running `db.update(append('tags', 'urgent'), Query().project == 'x')`",
+      "then": "the document becomes `{'project': 'x', 'tags': ['urgent']}`"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-4",
+      "given": "a database with a document `{'project': 'x', 'tags': ['bug']}`",
+      "when": "running `db.update(append('tags', 'urgent'), Query().project == 'x')`",
+      "then": "the document becomes `{'project': 'x', 'tags': ['bug', 'urgent']}`"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-5",
+      "given": "a database with a document `{'project': 'x', 'tags': 'not-a-list'}`",
+      "when": "running `db.update(append('tags', 'urgent'), Query().project == 'x')`",
+      "then": "TypeError is raised and the document is unchanged"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-6",
+      "given": "a database with two documents `{'project': 'x'}` and `{'project': 'x', 'tags': ['a']}`",
+      "when": "running `db.update(append('tags', 'b'), Query().project == 'x')`",
+      "then": "both documents are updated: first gets `['b']`, second gets `['a', 'b']`"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "NFR-1",
+      "given": "a database with three documents matching the query, where the second has a non-list field",
+      "when": "running `db.update(append('tags', 'x'), query)`",
+      "then": "TypeError is raised on the second document; the first document is updated, the third is not processed"
+    },
+    {
+      "id": "AC-8",
+      "requirement": "NFR-2",
+      "given": "a fresh Python environment with only TinyDB installed",
+      "when": "importing and using `append`",
+      "then": "no ImportError or missing dependency occurs"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "`append` is a function returning an operation object (matching the issue's `append('tags', 'urgent')` syntax)",
+      "default_used": "function-based API as shown in issue"
+    },
+    {
+      "id": "A-2",
+      "assumption": "Fail-fast semantics: on first TypeError, abort and raise; no documents after the error are modified",
+      "default_used": "fail-fast (conservative for data safety)"
+    },
+    {
+      "id": "A-3",
+      "assumption": "Nested field paths (e.g., 'tags.0') are not supported in this feature",
+      "default_used": "simple field names only"
+    },
+    {
+      "id": "A-4",
+      "assumption": "Operation works with any JSON-serialisable value (str, int, dict, etc.)",
+      "default_used": "no type restriction on value"
+    }
+  ],
+  "blocking_questions": []
+}

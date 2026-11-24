@@ -1,0 +1,81 @@
+{
+  "issue": 3,
+  "variant": "single",
+  "branch": "autose/issue-3-single",
+  "history": [
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 1,
+      "ok": false,
+      "summary": "3 blocking question(s) need a maintainer's answer",
+      "seconds": 97.2,
+      "steps": 1,
+      "prompt_tokens": 7290,
+      "completion_tokens": 4434,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 2,
+      "ok": true,
+      "summary": "9 testable ACs",
+      "seconds": 113.5,
+      "steps": 1,
+      "prompt_tokens": 7613,
+      "completion_tokens": 4358,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 1,
+      "ok": false,
+      "summary": "no ```json block with a non-empty 'files' list",
+      "seconds": 77.6,
+      "steps": 20,
+      "prompt_tokens": 213248,
+      "completion_tokens": 2462,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 19,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 2,
+      "ok": false,
+      "summary": "no ```json block with a non-empty 'files' list",
+      "seconds": 66.7,
+      "steps": 16,
+      "prompt_tokens": 163352,
+      "completion_tokens": 2231,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 15,
+      "stopped": "finished"
+    }
+  ],
+  "tokens": {
+    "prompt": 391503,
+    "completion": 13485
+  },
+  "review_round": 0,
+  "outcome": "stopped: design check failed: no ```json block with a non-empty 'files' list",
+  "budget": {
+    "limit": 2500000,
+    "used": 404988
+  }
+}

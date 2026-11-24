@@ -1,0 +1,75 @@
+{
+  "summary": "Make Table.update() and Table.remove() accept string document IDs in doc_ids (e.g. ['1', '2']) by converting them to int, matching Table.get() behaviour; non-existent IDs are skipped; invalid strings raise the same exception as get(doc_id='abc'); return values remain lists of int IDs.",
+  "issue_type": "bug",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a TinyDB table with three documents inserted via db.insert_multiple([{'a': 1}, {'a': 2}, {'a': 3}]) so their doc_ids are 1, 2, 3",
+      "when": "calling table.update({'a': 10}, doc_ids=['1', '2'])",
+      "then": "the method returns [1, 2] and table.get(doc_id=1) == {'a': 10} and table.get(doc_id=2) == {'a': 10}"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1, FR-4",
+      "given": "same table as AC-1",
+      "when": "calling table.update({'a': 99}, doc_ids=['1', '999', '2']) where 999 does not exist",
+      "then": "the method returns [1, 2] (skipping non-existent 999) and documents 1 and 2 are updated"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-2",
+      "given": "a TinyDB table with three documents (doc_ids 1, 2, 3)",
+      "when": "calling table.remove(doc_ids=['2', '3'])",
+      "then": "the method returns [2, 3] and table.get(doc_id=2) is None and table.get(doc_id=3) is None"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-2, FR-4",
+      "given": "same table as AC-3",
+      "when": "calling table.remove(doc_ids=['1', '999']) where 999 does not exist",
+      "then": "the method returns [1] (skipping 999) and only document 1 is removed"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-5",
+      "given": "a TinyDB table with at least one document",
+      "when": "calling table.update({'a': 1}, doc_ids=['abc']) or table.remove(doc_ids=['abc'])",
+      "then": "the method raises ValueError (assumption A-1; must match Table.get(doc_id='abc') behaviour)"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-6",
+      "given": "a TinyDB table with documents 1, 2, 3",
+      "when": "calling table.update({'a': 5}, doc_ids=[1, '2', 3])",
+      "then": "the method returns [1, 2, 3] and all three documents are updated (assumption A-2: mixed lists accepted like get())"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "NFR-1, NFR-2",
+      "given": "a TinyDB table",
+      "when": "calling table.get(doc_ids=['1']), table.contains(doc_id='1'), table.insert({'x': 1}), table.upsert({'x': 2}, Query().x == 2)",
+      "then": "all behave exactly as before the change (no regression)"
+    },
+    {
+      "id": "AC-8",
+      "requirement": "NFR-3",
+      "given": "the modified codebase",
+      "when": "running the full test suite (pytest)",
+      "then": "all tests pass and coverage remains 100%"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "Table.get(doc_id='abc') raises ValueError (standard int() conversion error)",
+      "default_used": "ValueError"
+    },
+    {
+      "id": "A-2",
+      "assumption": "Table.get(doc_ids=[1, '2', 3]) accepts mixed int/str lists",
+      "default_used": "yes, mixed lists accepted"
+    }
+  ],
+  "blocking_questions": []
+}

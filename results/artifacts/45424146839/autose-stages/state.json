@@ -1,0 +1,153 @@
+{
+  "issue": 5,
+  "variant": "default",
+  "branch": "autose/issue-5",
+  "history": [
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 1,
+      "ok": false,
+      "summary": "2 blocking question(s) need a maintainer's answer",
+      "seconds": 186.4,
+      "steps": 1,
+      "prompt_tokens": 7216,
+      "completion_tokens": 4922,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 2,
+      "ok": true,
+      "summary": "13 testable ACs",
+      "seconds": 102.0,
+      "steps": 1,
+      "prompt_tokens": 7534,
+      "completion_tokens": 3753,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 1,
+      "ok": true,
+      "summary": "files: tinydb/table.py",
+      "seconds": 265.1,
+      "steps": 26,
+      "prompt_tokens": 295873,
+      "completion_tokens": 9124,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "implement",
+      "attempt": 1,
+      "ok": false,
+      "summary": "build failed",
+      "seconds": 289.9,
+      "steps": 41,
+      "prompt_tokens": 710003,
+      "completion_tokens": 12541,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 38,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "implement",
+      "attempt": 2,
+      "ok": true,
+      "summary": "build ok",
+      "seconds": 114.6,
+      "steps": 41,
+      "prompt_tokens": 324709,
+      "completion_tokens": 3073,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 39,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "test",
+      "attempt": 2,
+      "ok": false,
+      "summary": "full suite failed: 5 failing test(s)",
+      "seconds": 633.9,
+      "steps": 20,
+      "prompt_tokens": 192617,
+      "completion_tokens": 21256,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 18,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 1,
+      "ok": false,
+      "summary": "no ```json block with a non-empty 'files' list",
+      "seconds": 251.2,
+      "steps": 26,
+      "prompt_tokens": 272748,
+      "completion_tokens": 2591,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 2,
+      "ok": true,
+      "summary": "files: tinydb/table.py",
+      "seconds": 121.7,
+      "steps": 26,
+      "prompt_tokens": 250241,
+      "completion_tokens": 3963,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "implement",
+      "attempt": 1,
+      "ok": false,
+      "summary": "token budget exhausted: used 2,478,855 of 2,500,000, next call could need up to 45,694",
+      "seconds": null
+    }
+  ],
+  "tokens": {
+    "prompt": 2060941,
+    "completion": 61223
+  },
+  "review_round": 0,
+  "outcome": "stopped: token budget exhausted: used 2,478,855 of 2,500,000, next call could need up to 45,694",
+  "budget": {
+    "limit": 2500000,
+    "used": 2478855
+  }
+}

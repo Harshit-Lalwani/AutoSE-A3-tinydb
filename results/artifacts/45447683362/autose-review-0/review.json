@@ -1,0 +1,112 @@
+{
+  "verdict": "request_changes",
+  "category": "code",
+  "requirements": [
+    {
+      "requirement": "A failed update must leave the database exactly as it was with MemoryStorage (issue's main example)",
+      "verified_by": "PYTHONPATH=$(pwd) python /tmp/probe_final.py (R1) and the exact issue snippet: db.all() -> [{'name': 'a'}, {'name': 'b'}] instead of [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "ok": false
+    },
+    {
+      "requirement": "A failed update must leave the database exactly as it was with JSON/file storage",
+      "verified_by": "PYTHONPATH=$(pwd) python /tmp/probe_final.py (R2): before == after, UNCHANGED",
+      "ok": true
+    },
+    {
+      "requirement": "Searches after a failed update must match the stored data (no stale cached answer)",
+      "verified_by": "PYTHONPATH=$(pwd) python /tmp/probe_final.py (R3): fresh == search after clear_cache(); also tests/test_failed_update.py fails on HEAD~1 code",
+      "ok": true
+    },
+    {
+      "requirement": "A failed remove must leave the database unchanged",
+      "verified_by": "PYTHONPATH=$(pwd) python /tmp/probe_final.py (R4): before == after",
+      "ok": true
+    },
+    {
+      "requirement": "A failed insert_multiple must leave the database unchanged",
+      "verified_by": "PYTHONPATH=$(pwd) python /tmp/probe_final.py (R5): before == after",
+      "ok": true
+    },
+    {
+      "requirement": "Searches must not be stale after any failed write operation (storage.write raising)",
+      "verified_by": "PYTHONPATH=$(pwd) python /tmp/probe_final.py (R6): stale result [{'name':'a','tmp':1}] vs stored [{'name':'a','tmp':1,'x':1}]",
+      "ok": false
+    },
+    {
+      "requirement": "Full test suite passes; no unrelated changes; architecture constraints C1-C5 respected",
+      "verified_by": "python -m pytest -q -p no:cacheprovider -> 229 passed; git diff HEAD~1 HEAD shows only tinydb/table.py and tests/test_failed_update.py; ARCHITECTURE.md C3 (writes only via _update_table) still holds",
+      "ok": true
+    }
+  ],
+  "findings": [
+    {
+      "severity": "major",
+      "file": "tinydb/table.py",
+      "line": 834,
+      "problem": "Failed updates still mutate the stored data with MemoryStorage, so the database is not left 'exactly as it was'. _update_table only shallow-copies the table mapping; the document values are the same dict objects returned by MemoryStorage.read() (which returns self.memory directly), so an in-place mutation by the updater (delete('tmp'), or any user callable) corrupts the live storage even though storage.write() is never called. The PR only clears the query cache, which makes searches report the corrupted state instead of restoring it.",
+      "evidence": "Probe on PR head: db.insert({'name':'a','tmp':1}); db.insert({'name':'b'}); db.update(delete('tmp')) raises KeyError, then db.all() -> [{'name': 'a'}, {'name': 'b'}] (expected [{'name': 'a', 'tmp': 1}, {'name': 'b'}]); db.storage.read() -> {'_default': {'1': {'name': 'a'}, '2': {'name': 'b'}}}. Nested mutation leaks too: doc['a']['b']=42 before raising leaves {'a': {'b': 42}} in storage."
+    },
+    {
+      "severity": "major",
+      "file": "tinydb/table.py",
+      "line": 856,
+      "problem": "The try/except only wraps updater(table); storage.write(tables) is outside it. If the write raises (e.g. disk full), the query cache is not cleared and the storage may already have been mutated, so searches return stale results - the same class of bug the PR claims to fix.",
+      "evidence": "Probe R6 with a MemoryStorage subclass whose write() raises IOError: after the failed db.update({'x':1}), db.search(Query().tmp.exists()) -> [{'name':'a','tmp':1}] while after db.clear_cache() it is [{'name':'a','tmp':1,'x':1}]."
+    },
+    {
+      "severity": "minor",
+      "file": "tests/test_failed_update.py",
+      "line": 17,
+      "problem": "The new test only compares a cached search against the same search after clear_cache(); it asserts no concrete expected values and does not cover the issue's atomicity requirement, JSON storage, remove/insert_multiple, or write failures. It therefore passes while the reported data corruption remains.",
+      "evidence": "tests/test_failed_update.py content; the issue's own snippet still yields db.all() == [{'name': 'a'}, {'name': 'b'}] on the PR head."
+    }
+  ],
+  "summary": "The PR only invalidates the query cache on updater failure, so the issue's core requirement - a failed update leaving the database exactly as it was - is still violated with MemoryStorage (and the cache can still go stale when storage.write() fails).",
+  "pr": 8,
+  "issue": null,
+  "round": 0,
+  "variant": "isolated",
+  "models": [
+    "nim:minimaxai/minimax-m3.1-flash"
+  ],
+  "commands": [
+    "ls && cat ARCHITECTURE.md",
+    "git diff main...HEAD --stat && git log --oneline -5",
+    "git log --oneline -5; git branch -a; git diff HEAD~1 --stat 2>/dev/null || true",
+    "sed -n 1,120p tinydb/table.py; echo ---; sed -n 780,900p tinydb/table.py",
+    "grep -n \"def insert\\|def insert_multiple\\|def update\\|def remove\\|def upsert\\|def truncate\\|def clear_cache\\|def search\" tinydb/table.py",
+    "grep -n \"C3\\|_update_table\\|cache\" ARCHITECTURE.md | head -60",
+    "sed -n 130,260p tinydb/table.py",
+    "sed -n 420,730p tinydb/table.py",
+    "cd /tmp && python -c \"\nimport sys; sys.path.insert(0,'/')\n\" ; cd - >/dev/null; python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import delete\n\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'name':'a','tmp':1})\ndb.insert({'name':'b'})\ntry:\n    db.update(delete('tmp'))\nexcept KeyError as e:\n    print('raised', e)\nprint('all:', db.all())\nprint('storage:', db.storage.read())\nEOF",
+    "python -m pytest -q -p no:cacheprovider 2>&1 | tail -20",
+    "python - <<'EOF'\nimport json, tempfile, os\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage, JSONStorage\nfrom tinydb.operations import delete\n\n# JSON storage\nd = tempfile.mkdtemp()\np = os.path.join(d,'db.json')\ndb = TinyDB(p)\ndb.insert({'name':'a','tmp':1})\ndb.insert({'name':'b'})\ntry:\n    db.update(delete('tmp'))\nexcept KeyError as e:\n    print('raised', e)\nprint('all:', db.all())\nprint('file:', open(p).read())\nEOF",
+    "python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import delete\n\n# cache freshness check\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'name':'a','tmp':1})\ndb.insert({'name':'b'})\nprint('before search:', db.search(Query().tmp.exists()))\ntry:\n    db.update(delete('tmp'))\nexcept KeyError:\n    pass\nprint('after search:', db.search(Query().tmp.exists()))\ndb.clear_cache()\nprint('after clear:', db.search(Query().tmp.exists()))\nEOF",
+    "python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\n\n# insert_multiple failure: second doc invalid\ndb = TinyDB(storage=MemoryStorage)\ntry:\n    db.insert_multiple([{'a':1}, 'not a mapping'])\nexcept ValueError as e:\n    print('raised', e)\nprint('all:', db.all())\nprint('storage:', db.storage.read())\nEOF",
+    "python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\n\n# remove failure? remove with cond that raises\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'a':1})\ndb.insert({'a':2})\nclass Bad:\n    def __call__(self, doc):\n        if doc['a']==2: raise RuntimeError('boom')\n        return True\ntry:\n    db.remove(Bad())\nexcept RuntimeError as e:\n    print('raised', e)\nprint('all:', db.all())\nprint('storage:', db.storage.read())\nEOF",
+    "python - <<'EOF'\nfrom tinydb import TinyDB\nfrom tinydb.storages import MemoryStorage\n\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'a':1})\ndef upd(doc):\n    doc['a'] = 99\n    raise RuntimeError('x')\ntry:\n    db.update(upd)\nexcept RuntimeError:\n    pass\nprint('all:', db.all())\nprint('storage:', db.storage.read())\nEOF",
+    "grep -rn \"MemoryStorage\" tinydb/storages.py | head; sed -n 1,80p tinydb/storages.py",
+    "git stash list; git show HEAD~1:tinydb/table.py > /tmp/table_old.py; cp tinydb/table.py /tmp/table_new.py; cp /tmp/table_old.py tinydb/table.py; python -m pytest tests/test_failed_update.py -q -p no:cacheprovider 2>&1 | tail -15; cp /tmp/table_new.py tinydb/table.py; git diff --stat",
+    "grep -rn \"deepcopy\\|copy(\" tinydb/*.py | head -20; grep -rn \"atomic\\|rollback\" tinydb/ tests/ ARCHITECTURE.md | head -20",
+    "grep -rn \"failed\\|raises\" tests/test_tinydb.py | head -40; ls tests",
+    "cat > /tmp/probe_issue.py <<'EOF'\nimport os, tempfile\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage, JSONStorage\nfrom tinydb.operations import delete\n\ndef scenario(storage, path=None):\n    db = TinyDB(path, storage=storage) if path else TinyDB(storage=storage)\n    db.insert({'name':'a','tmp':1})\n    db.insert({'name':'b'})\n    before = db.all()\n    try:\n        db.update(delete('tmp'))\n    except KeyError:\n        pass\n    after = db.all()\n    print(type(storage).__name__, 'before:', before, 'after:', after, 'UNCHANGED' if before==after else 'CHANGED!!')\n    return db\n\nscenario(MemoryStorage)\nd = tempfile.mkdtemp(); p = os.path.join(d,'db.json')\nscenario(JSONStorage, p)\nEOF\npython /tmp/probe_issue.py",
+    "PYTHONPATH=$(pwd) python /tmp/probe_issue.py",
+    "cat > /tmp/probe2.py <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\n\n# remove with a failing condition\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'a':1}); db.insert({'a':2})\nclass Bad:\n    def __call__(self, doc):\n        if doc['a']==2: raise RuntimeError('boom')\n        return True\ntry: db.remove(Bad())\nexcept RuntimeError: pass\nprint('remove after:', db.all())\n\n# insert_multiple with invalid second doc\ndb2 = TinyDB(storage=MemoryStorage)\ntry: db2.insert_multiple([{'a':1}, 'bad'])\nexcept ValueError: pass\nprint('insert_multiple after:', db2.all())\n\n# update_multiple\ndb3 = TinyDB(storage=MemoryStorage)\ndb3.insert({'a':1}); db3.insert({'a':2})\ndef bad(doc):\n    doc['a']=99\n    raise RuntimeError('boom')\ntry: db3.update_multiple(bad)\nexcept RuntimeError: pass\nprint('update_multiple after:', db3.all())\nEOF\nPYTHONPATH=$(pwd) python /tmp/probe2.py",
+    "grep -rn \"def update_multiple\" -A 40 tinydb/table.py | head -60",
+    "cat > /tmp/probe3.py <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\n\nclass FailingWrite(MemoryStorage):\n    def write(self, data):\n        raise IOError('disk full')\n\ndb = TinyDB(storage=FailingWrite)\ndb.insert({'name':'a','tmp':1})\ndb.insert({'name':'b'})\nprint('cached search:', db.search(Query().tmp.exists()))\ntry:\n    db.update(delete('tmp')) if False else db.update({'x':1})\nexcept IOError as e:\n    print('write failed:', e)\nprint('search after write failure:', db.search(Query().tmp.exists()))\ndb.clear_cache()\nprint('search after clear:', db.search(Query().tmp.exists()))\nEOF\nPYTHONPATH=$(pwd) python /tmp/probe3.py",
+    "cat > /tmp/probe3.py <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\n\nclass FailingWrite(MemoryStorage):\n    fail = False\n    def write(self, data):\n        if FailingWrite.fail:\n            raise IOError('disk full')\n        super().write(data)\n\ndb = TinyDB(storage=FailingWrite)\ndb.insert({'name':'a','tmp':1})\ndb.insert({'name':'b'})\nprint('cached search:', db.search(Query().tmp.exists()))\nFailingWrite.fail = True\ntry:\n    db.update({'x':1})\nexcept IOError as e:\n    print('write failed:', e)\nprint('search after write failure:', db.search(Query().tmp.exists()))\ndb.clear_cache()\nprint('search after clear:', db.search(Query().tmp.exists()))\nEOF\nPYTHONPATH=$(pwd) python /tmp/probe3.py",
+    "git log --oneline --all | head -20; git log --all --oneline --grep=\"atomic\\|rollback\\|failed\" | head -20",
+    "grep -rn \"read()\" tinydb/storages.py | head; sed -n 160,200p tinydb/storages.py",
+    "cat > /tmp/probe_final.py <<'EOF'\nimport os, tempfile\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage, JSONStorage\nfrom tinydb.operations import delete\n\nresults = []\n\ndef check(name, ok, detail=''):\n    results.append((name, ok, detail))\n    print(('PASS' if ok else 'FAIL'), name, detail)\n\n# R1: failed update leaves MemoryStorage DB unchanged\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'name':'a','tmp':1}); db.insert({'name':'b'})\nbefore = [dict(d) for d in db.all()]\ntry: db.update(delete('tmp'))\nexcept KeyError: pass\nafter = [dict(d) for d in db.all()]\ncheck('R1 failed update leaves MemoryStorage unchanged', before == after, f'{before} -> {after}')\n\n# R2: failed update leaves JSONStorage unchanged\nd = tempfile.mkdtemp(); p = os.path.join(d,'db.json')\ndb = TinyDB(p)\ndb.insert({'name':'a','tmp':1}); db.insert({'name':'b'})\nbefore = [dict(x) for x in db.all()]\ntry: db.update(delete('tmp'))\nexcept KeyError: pass\nafter = [dict(x) for x in db.all()]\ncheck('R2 failed update leaves JSONStorage unchanged', before == after, f'{before} -> {after}')\n\n# R3: search after failed update matches stored data (Memory)\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'name':'a','tmp':1}); db.insert({'name':'b'})\ndb.search(Query().tmp.exists())\ntry: db.update(delete('tmp'))\nexcept KeyError: pass\nfresh = db.search(Query().tmp.exists())\ndb.clear_cache()\ncheck('R3 search fresh after failed update', fresh == db.search(Query().tmp.exists()), f'{fresh}')\n\n# R4: failed remove leaves DB unchanged (Memory)\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'a':1}); db.insert({'a':2})\nclass Bad:\n    def __call__(self, doc):\n        if doc['a']==2: raise RuntimeError('boom')\n        return True\nbefore = [dict(x) for x in db.all()]\ntry: db.remove(Bad())\nexcept RuntimeError: pass\nafter = [dict(x) for x in db.all()]\ncheck('R4 failed remove leaves MemoryStorage unchanged', before == after, f'{before} -> {after}')\n\n# R5: failed insert_multiple leaves DB unchanged\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'keep':1})\nbefore = [dict(x) for x in db.all()]\ntry: db.insert_multiple([{'a':1}, 'bad'])\nexcept ValueError: pass\nafter = [dict(x) for x in db.all()]\ncheck('R5 failed insert_multiple leaves DB unchanged', before == after, f'{before} -> {after}')\n\n# R6: failed write leaves cache consistent with stored data\nclass FailingWrite(MemoryStorage):\n    fail = False\n    def write(self, data):\n        if FailingWrite.fail: raise IOError('disk full')\n        super().write(data)\ndb = TinyDB(storage=FailingWrite)\ndb.insert({'name':'a','tmp':1})\ndb.search(Query().tmp.exists())\nFailingWrite.fail = True\ntry: db.update({'x':1})\nexcept IOError: pass\nfresh = db.search(Query().tmp.exists())\ndb.clear_cache()\ncheck('R6 search fresh after failed storage.write', fresh == db.search(Query().tmp.exists()), f'{fresh} vs {db.search(Query().tmp.exists())}')\nEOF\nPYTHONPATH=$(pwd) python /tmp/probe_final.py",
+    "cat > /tmp/probe4.py <<'EOF'\nfrom tinydb import TinyDB\nfrom tinydb.storages import MemoryStorage\n\n# nested mutation leak\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'a': {'b': 1}})\ndef upd(doc):\n    doc['a']['b'] = 42\n    raise RuntimeError('x')\ntry: db.update(upd)\nexcept RuntimeError: pass\nprint('nested after:', db.all())\n\n# insert stores a copy? check aliasing\ndb2 = TinyDB(storage=MemoryStorage)\nd = {'x': 1}\ndb2.insert(d)\nd['x'] = 99\nprint('after mutating original dict:', db2.all())\nEOF\nPYTHONPATH=$(pwd) python /tmp/probe4.py",
+    "nl -ba tinydb/table.py | sed -n '820,865p'",
+    "git diff HEAD~1 HEAD; echo \"=== full suite ===\"; python -m pytest -q -p no:cacheprovider 2>&1 | tail -3",
+    "PYTHONPATH=$(pwd) python - <<'EOF'\n# final confirmation of the exact issue snippet on PR head\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import delete\n\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'name': 'a', 'tmp': 1})\ndb.insert({'name': 'b'})\ntry:\n    db.update(delete('tmp'))\nexcept KeyError as e:\n    print('KeyError:', e)\nprint('db.all() ->', db.all())\nprint('expected by issue ->', [{'name': 'a', 'tmp': 1}, {'name': 'b'}])\nEOF"
+  ],
+  "steps": 21,
+  "prompt_tokens": 268184,
+  "completion_tokens": 7976,
+  "sha": "09a618dda7987e0c827c4ea6bafe84517b51510c",
+  "budget_used": 276160,
+  "budget_limit": 400000
+}

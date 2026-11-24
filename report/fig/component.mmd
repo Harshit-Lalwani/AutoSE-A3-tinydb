@@ -1,0 +1,21 @@
+flowchart LR
+  I[(Issue<br/>untrusted)] -->|label / comment| G[gate job<br/>write-access check<br/>mode + variant]
+  G --> O
+  subgraph S[stages job · contents:write]
+    O[orchestrator.py<br/>state machine + checks.py<br/>holds keys + GH token]
+    O --> SP{{Spec agent<br/>no tools<br/>A1 SRS skill}}
+    O --> DE{{Design agent<br/>bash, read-only<br/>ARCHITECTURE.md}}
+    O --> CO{{Coder agent<br/>bash + write_file}}
+    O --> TE{{Tester agent<br/>bash + write_file}}
+    O --> RE[stage_release<br/>git push · gh pr · CI dispatch]
+  end
+  RE --> PR[(Pull request)]
+  RE --> CI[[ci-workflow.yml]]
+  PR --> R
+  subgraph V[review job · contents:read]
+    R[review.py] --> RA{{Reviewer agent<br/>other model family<br/>bash, no creds}}
+  end
+  R -->|review comment| PR
+  R -->|request changes| F[fix job<br/>= stages, resume<br/>at design / implement]
+  F --> R
+  PR --> H([Maintainer merges / closes])

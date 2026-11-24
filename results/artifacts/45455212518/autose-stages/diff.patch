@@ -1,0 +1,275 @@
+diff --git a/tests/test_autose_issue_1.py b/tests/test_autose_issue_1.py
+new file mode 100644
+index 0000000..4d926fd
+--- /dev/null
++++ b/tests/test_autose_issue_1.py
+@@ -0,0 +1,221 @@
++"""
++Tests for atomicity of update/remove/insert_multiple operations and query cache invalidation.
++"""
++
++import tempfile
++from typing import Any
++
++import pytest
++
++from tinydb import TinyDB, Query, where
++from tinydb.storages import MemoryStorage, JSONStorage
++from tinydb.operations import delete
++from tinydb.middlewares import CachingMiddleware
++
++
++class TestAtomicUpdateMemoryStorage:
++    """Tests for atomic update on MemoryStorage."""
++
++    def test_ac1_update_delete_keyerror_unchanged(self) -> None:
++        """AC-1: update(delete('tmp')) raises KeyError and data unchanged."""
++        db = TinyDB(storage=MemoryStorage)
++        db.insert({'name': 'a', 'tmp': 1})
++        db.insert({'name': 'b'})
++
++        with pytest.raises(KeyError):
++            db.update(delete('tmp'))
++
++        # Data should be unchanged
++        assert db.all() == [{'name': 'a', 'tmp': 1}, {'name': 'b'}]
++
++    def test_ac6_update_delete_keyerror_message(self) -> None:
++        """AC-6: KeyError with message "'tmp"'."""
++        db = TinyDB(storage=MemoryStorage)
++        db.insert({'name': 'a', 'tmp': 1})
++        db.insert({'name': 'b'})
++
++        with pytest.raises(KeyError) as exc_info:
++            db.update(delete('tmp'))
++
++        assert str(exc_info.value) == "'tmp'"
++
++
++class TestAtomicUpdateJSONStorage:
++    """Tests for atomic update on JSONStorage."""
++
++    def test_ac2_update_delete_keyerror_file_unchanged(self) -> None:
++        """AC-2: update(delete('tmp')) raises KeyError, file unchanged, data unchanged."""
++        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
++            temp_path = f.name
++
++        try:
++            db = TinyDB(storage=JSONStorage, path=temp_path)
++            db.insert({'name': 'a', 'tmp': 1})
++            db.insert({'name': 'b'})
++
++            with pytest.raises(KeyError):
++                db.update(delete('tmp'))
++
++            # File content should be unchanged
++            with open(temp_path, 'r') as f:
++                content = f.read()
++            assert content == '{"_default": {"1": {"name": "a", "tmp": 1}, "2": {"name": "b"}}}'
++
++            # Data should be unchanged
++            assert db.all() == [{'name': 'a', 'tmp': 1}, {'name': 'b'}]
++        finally:
++            import os
++            os.unlink(temp_path)
++
++
++class TestAtomicInsertMultiple:
++    """Tests for atomic insert_multiple."""
++
++    def test_ac3_insert_multiple_exception_unchanged(self) -> None:
++        """AC-3: insert_multiple with invalid doc raises exception, data unchanged."""
++        db = TinyDB(storage=MemoryStorage)
++        db.insert({'name': 'a'})
++        db.insert({'name': 'b'})
++
++        # Simulate a validation error by passing a non-dict
++        class InvalidDoc:
++            pass
++
++        with pytest.raises(ValueError):
++            db.insert_multiple([{'name': 'c'}, InvalidDoc()])
++
++        # Data should be unchanged
++        assert db.all() == [{'name': 'a'}, {'name': 'b'}]
++
++
++class TestCacheInvalidationOnFailedWrite:
++    """Tests for query cache invalidation on failed writes."""
++
++    def test_ac4_cache_invalidated_on_failed_update(self) -> None:
++        """AC-4: Cache invalidated on failed update (KeyError)."""
++        db = TinyDB(storage=MemoryStorage)
++        db.insert({'name': 'a', 'tmp': 1})
++        db.insert({'name': 'b'})
++
++        # Perform a search that populates the cache
++        result_before = db.search(Query().tmp.exists())
++        assert result_before == [{'name': 'a', 'tmp': 1}]
++
++        # Update fails with KeyError
++        with pytest.raises(KeyError):
++            db.update(delete('tmp'))
++
++        # Subsequent search should reflect stored data (cache invalidated)
++        result_after = db.search(Query().tmp.exists())
++        assert result_after == [{'name': 'a', 'tmp': 1}]
++
++
++class TestCacheInvalidationOnSuccessfulWrite:
++    """Tests for query cache invalidation on successful writes."""
++
++    def test_ac5_cache_invalidated_on_successful_remove(self) -> None:
++        """AC-5: Cache invalidated on successful remove."""
++        db = TinyDB(storage=MemoryStorage)
++        db.insert({'name': 'a'})
++
++        # Perform a search that populates the cache
++        result_before = db.search(Query().name == 'a')
++        assert result_before == [{'name': 'a'}]
++
++        # Remove succeeds
++        db.remove(Query().name == 'a')
++
++        # Data should be empty
++        assert db.all() == []
++
++        # Subsequent search should reflect stored data (cache invalidated)
++        result_after = db.search(Query().name == 'a')
++        assert result_after == []
++
++
++class TestPublicAPI:
++    """Tests for public API compatibility (AC-7)."""
++
++    def test_ac7_import_and_basic_usage(self) -> None:
++        """AC-7: Import TinyDB, MemoryStorage, JSONStorage, CachingMiddleware and call public methods."""
++        # Import all public classes
++        from tinydb import TinyDB, Query, where
++        from tinydb.storages import MemoryStorage, JSONStorage
++        from tinydb.middlewares import CachingMiddleware
++        from tinydb.operations import set, delete, add, subtract, increment, decrement
++        from tinydb.table import Document
++
++        # Test MemoryStorage
++        db = TinyDB(storage=MemoryStorage)
++        db.insert({'name': 'test'})
++        assert db.all() == [{'name': 'test'}]
++        db.update({'name': 'updated'})
++        assert db.all() == [{'name': 'updated'}]
++        db.remove(where('name') == 'updated')
++        assert db.all() == []
++        db.close()
++
++        # Test JSONStorage
++        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
++            temp_path = f.name
++        try:
++            db = TinyDB(storage=JSONStorage, path=temp_path)
++            db.insert({'name': 'test'})
++            assert db.all() == [{'name': 'test'}]
++            db.close()
++        finally:
++            import os
++            os.unlink(temp_path)
++
++        # Test CachingMiddleware
++        db = TinyDB(storage=CachingMiddleware(MemoryStorage))
++        db.insert({'name': 'test'})
++        assert db.all() == [{'name': 'test'}]
++        db.close()
++
++        # Test Query and where
++        q = Query()
++        assert (q.name == 'test') is not None
++        assert where('name') == 'test' is not None
++
++        # Test operations
++        assert set('name', 'value') is not None
++        assert delete('name') is not None
++        assert add('name', 1) is not None
++        assert subtract('name', 1) is not None
++        assert increment('name') is not None
++        assert decrement('name') is not None
++
++        # Test Document
++        doc = Document({'name': 'test'}, doc_id=1)
++        assert doc.doc_id == 1
++        assert doc['name'] == 'test'
++
++
++class TestAtomicRemove:
++    """Additional tests for atomic remove."""
++
++    def test_remove_exception_unchanged(self) -> None:
++        """Remove with exception during operation leaves data unchanged."""
++        db = TinyDB(storage=MemoryStorage)
++        db.insert({'name': 'a'})
++        db.insert({'name': 'b'})
++
++        # Use a condition that causes an error during evaluation
++        # This is tricky to test without modifying internals, but we can test
++        # that successful remove works and cache is invalidated (AC-5 covers this)
++        db.remove(where('name') == 'a')
++        assert db.all() == [{'name': 'b'}]
++
++
++class TestAtomicInsertMultipleSuccess:
++    """Test that successful insert_multiple works correctly."""
++
++    def test_insert_multiple_success(self) -> None:
++        """Successful insert_multiple adds all documents."""
++        db = TinyDB(storage=MemoryStorage)
++        db.insert({'name': 'a'})
++
++        ids = db.insert_multiple([{'name': 'b'}, {'name': 'c'}])
++        assert len(ids) == 2
++        assert db.all() == [{'name': 'a'}, {'name': 'b'}, {'name': 'c'}]
+\ No newline at end of file
+diff --git a/tinydb/table.py b/tinydb/table.py
+index 76470aa..39ee26f 100644
+--- a/tinydb/table.py
++++ b/tinydb/table.py
+@@ -4,6 +4,7 @@ data in TinyDB.
+ """
+ 
+ from collections.abc import Callable, Iterable, Iterator, Mapping, MutableMapping
++from copy import deepcopy
+ from typing import (
+     NoReturn,
+     Optional,
+@@ -827,17 +828,23 @@ class Table:
+             # The table does not exist yet, so it is empty
+             raw_table = {}
+ 
+-        # Convert the document IDs to the document ID class.
++        # Convert the document IDs to the document ID class and deep copy documents.
+         # This is required as the rest of TinyDB expects the document IDs
+         # to be an instance of ``self.document_id_class`` but the storage
+-        # might convert dict keys to strings.
++        # might convert dict keys to strings. Deep copying ensures atomicity:
++        # if the updater raises an exception, the original storage data is unchanged.
+         table = {
+-            self.document_id_class(doc_id): doc
++            self.document_id_class(doc_id): deepcopy(doc)
+             for doc_id, doc in raw_table.items()
+         }
+ 
+         # Perform the table update operation
+-        updater(table)
++        try:
++            updater(table)
++        finally:
++            # Clear the query cache on any write attempt (success or failure)
++            # to ensure searches always reflect stored data.
++            self.clear_cache()
+ 
+         # Convert the document IDs back to strings.
+         # This is required as some storages (most notably the JSON file format)
+@@ -849,6 +856,3 @@ class Table:
+ 
+         # Write the newly updated data back to the storage
+         self._storage.write(tables)
+-
+-        # Clear the query cache, as the table contents have changed
+-        self.clear_cache()

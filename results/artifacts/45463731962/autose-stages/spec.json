@@ -1,0 +1,78 @@
+{
+  "summary": "Make MemoryStorage write operations (update, remove, insert_multiple) atomic like JSONStorage (all-or-nothing on exception) and ensure the search cache is invalidated after any write, success or failure, so searches always reflect stored data.",
+  "issue_type": "bug",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.update(delete('tmp')) is called and raises KeyError",
+      "then": "db.all() returns [{'name': 'a', 'tmp': 1}, {'name': 'b'}] (unchanged)"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.update(delete('tmp')) is called and raises KeyError",
+      "then": "the KeyError is raised (exception type unchanged)"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-2",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.remove(Query().tmp.exists()) is called and raises an exception (e.g., a custom test function that raises)",
+      "then": "db.all() returns the original data unchanged"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-3",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a'}]",
+      "when": "db.insert_multiple([{'name': 'b'}, {'name': 'c', 'bad': 1/0}]) is called and raises ZeroDivisionError",
+      "then": "db.all() returns [{'name': 'a'}] (no partial insert)"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-4",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.search(Query().tmp.exists()) is called, then db.update(delete('tmp')) is called and raises KeyError, then db.search(Query().tmp.exists()) is called again",
+      "then": "the second search returns [] (matching the actual stored data, not the stale cache)"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-4",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a'}]",
+      "when": "db.search(Query().name == 'a') is called, then db.insert({'name': 'b'}) succeeds, then db.search(Query().name == 'b') is called",
+      "then": "the second search returns [{'name': 'b'}] (cache invalidated on successful write)"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "NFR-1, NFR-2",
+      "given": "a TinyDB instance with JSONStorage (temp file) containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.update(delete('tmp')) is called and raises KeyError",
+      "then": "the JSON file content is unchanged and db.all() returns the original data (existing behaviour preserved)"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "Maintainer accepts that MemoryStorage should match JSONStorage's all-or-nothing semantics (bug, not feature).",
+      "default_used": "Atomicity required for update, remove, insert_multiple on MemoryStorage."
+    },
+    {
+      "id": "A-2",
+      "assumption": "Atomicity can be implemented via copy-on-write or staging buffer; either is acceptable.",
+      "default_used": "Copy-on-write (deep copy before mutation) as conservative default."
+    },
+    {
+      "id": "A-3",
+      "assumption": "Cache invalidation on failed writes belongs in the table layer (where clear_cache() is).",
+      "default_used": "Call Table.clear_cache() in write methods' finally block or after catching exception."
+    },
+    {
+      "id": "A-4",
+      "assumption": "insert_multiple currently has the same partial-failure bug.",
+      "default_used": "Include insert_multiple in the atomicity fix (FR-3)."
+    }
+  ],
+  "blocking_questions": []
+}

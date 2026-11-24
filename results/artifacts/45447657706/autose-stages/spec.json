@@ -1,0 +1,66 @@
+{
+  "summary": "Add an `append` operation to tinydb.operations that appends a value to a list field, creates the field as a single-element list if absent, and raises TypeError if the field exists but is not a list.",
+  "issue_type": "feature",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "the tinydb.operations module",
+      "when": "importing append via 'from tinydb.operations import append'",
+      "then": "append is a class that can be instantiated with a field name and value"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-2",
+      "given": "a database with documents {'tags': ['bug']} and {'tags': ['feature']}",
+      "when": "calling db.update(append('tags', 'urgent'), Query().tags.exists())",
+      "then": "both documents have 'urgent' appended to their tags list: ['bug', 'urgent'] and ['feature', 'urgent']"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-3",
+      "given": "a database with a document {'title': 'hello'} (no tags field)",
+      "when": "calling db.update(append('tags', 'new'), Query().title == 'hello')",
+      "then": "the document now has {'title': 'hello', 'tags': ['new']}"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-4",
+      "given": "a database with a document {'tags': 'not-a-list'}",
+      "when": "calling db.update(append('tags', 'x'), Query().tags.exists())",
+      "then": "TypeError is raised and the document is unchanged"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-5",
+      "given": "a database with multiple documents matching a query",
+      "when": "calling db.update(append('field', 'value'), query_matching_multiple)",
+      "then": "all matching documents are updated according to FR-2/FR-3/FR-4"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "NFR-1",
+      "given": "the append class implementation",
+      "when": "inspecting its structure",
+      "then": "it follows the same pattern as add/increment/set (has __init__(field, value) and __call__(document) returning modified document)"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "The class name is 'append' (lowercase), consistent with existing operations add, increment, set, etc.",
+      "default_used": "lowercase 'append'"
+    },
+    {
+      "id": "A-2",
+      "assumption": "The operation returns a new document dict (does not mutate in place), matching the pattern of other operations.",
+      "default_used": "return new dict"
+    },
+    {
+      "id": "A-3",
+      "assumption": "TypeError is raised with a descriptive message mentioning the field name and actual type.",
+      "default_used": "raise TypeError(f\"Field '{field}' is not a list\")"
+    }
+  ],
+  "blocking_questions": []
+}

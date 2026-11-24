@@ -1,0 +1,80 @@
+{
+  "summary": "Add an `append` operation to `tinydb.operations` that appends a value to a list field, creates the field as a single-element list if missing, and raises TypeError if the field exists but is not a list.",
+  "issue_type": "feature",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "the tinydb.operations module",
+      "when": "importing append via 'from tinydb.operations import append'",
+      "then": "append is a class and isinstance(append('tags', 'x'), object) is True"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-2",
+      "given": "a database with documents [{'tags': ['a']}, {'tags': ['b']}]",
+      "when": "db.update(append('tags', 'urgent'), Query().tags.exists())",
+      "then": "db.all() returns [{'tags': ['a', 'urgent']}, {'tags': ['b', 'urgent']}]"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-3",
+      "given": "a database with documents [{'name': 'x'}, {'name': 'y'}]",
+      "when": "db.update(append('tags', 'urgent'), Query().name.one_of(['x', 'y']))",
+      "then": "db.all() returns [{'name': 'x', 'tags': ['urgent']}, {'name': 'y', 'tags': ['urgent']}]"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-4",
+      "given": "a database with a document {'tags': 'not-a-list'}",
+      "when": "db.update(append('tags', 'urgent'), Query().tags.exists())",
+      "then": "TypeError is raised and the document remains unchanged"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-5",
+      "given": "a Table instance 'table = db.table('t')' with documents [{'tags': ['a']}]",
+      "when": "table.update(append('tags', 'b'), Query().tags.exists())",
+      "then": "table.all() returns [{'tags': ['a', 'b']}]"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-6",
+      "given": "a database with documents [{'tags': ['a']}, {'tags': 'not-a-list'}, {'tags': ['c']}]",
+      "when": "db.update(append('tags', 'x'), Query().tags.exists())",
+      "then": "the first and third documents are updated to ['a', 'x'] and ['c', 'x']; the second document is unchanged; no exception propagates out of update()"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "NFR-1",
+      "given": "the append operation implementation",
+      "when": "inspecting imports",
+      "then": "no imports outside the Python standard library and tinydb itself"
+    },
+    {
+      "id": "AC-8",
+      "requirement": "NFR-2",
+      "given": "the test suite",
+      "when": "running tests on Python 3.8, 3.9, 3.10, 3.11, 3.12, 3.13 and PyPy3",
+      "then": "all tests pass"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "The Operation base class expects a __call__(self, value) method that receives the current field value (or a MISSING sentinel) and returns the new value to store.",
+      "default_used": "Implement __call__(self, value) matching the add/increment pattern."
+    },
+    {
+      "id": "A-2",
+      "assumption": "TinyDB.update() catches exceptions per document and continues with the next document (skip-fail behaviour).",
+      "default_used": "Assume skip-fail; if update() aborts on first exception, FR-6 will not hold without core changes."
+    },
+    {
+      "id": "A-3",
+      "assumption": "The sentinel for 'field not present' passed to __call__ is a unique object (e.g., MISSING) distinguishable from a stored None.",
+      "default_used": "Assume a MISSING sentinel similar to existing operations."
+    }
+  ],
+  "blocking_questions": []
+}

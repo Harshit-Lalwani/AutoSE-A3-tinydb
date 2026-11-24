@@ -1,0 +1,12 @@
+{
+  "files": [
+    {
+      "path": "tinydb/storages.py",
+      "new": false,
+      "symbols": [
+        "MemoryStorage.read"
+      ],
+      "new_symbols": []
+    }
+  ]
+}

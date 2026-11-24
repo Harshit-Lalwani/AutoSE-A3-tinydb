@@ -1,0 +1,122 @@
+{
+  "verdict": "request_changes",
+  "category": "code",
+  "requirements": [
+    {
+      "requirement": "Provide an `append` operation in tinydb.operations usable as db.update(append('tags','urgent'), Query().project == 'x')",
+      "verified_by": "python -m pytest -q -p no:cacheprovider (241 passed) and probe: db.update(append('tags','x'), Query().id==1) -> {'id':1,'tags':['x']}",
+      "ok": true
+    },
+    {
+      "requirement": "Missing field is created as a list containing only the appended value",
+      "verified_by": "probe: db.insert({'id':1}); db.update(append('tags','x'), ...) -> {'id':1,'tags':['x']}",
+      "ok": true
+    },
+    {
+      "requirement": "Existing list gets the value appended at the end, preserving order",
+      "verified_by": "probe: {'tags':['a','b','c']} -> ['a','b','c','d']; empty list -> ['first']",
+      "ok": true
+    },
+    {
+      "requirement": "Existing non-list field raises TypeError instead of silently doing something weird",
+      "verified_by": "probe: field='not-a-list' -> TypeError: Field 'tags' is not a list; tuple field -> same TypeError",
+      "ok": true
+    },
+    {
+      "requirement": "All matching documents are updated",
+      "verified_by": "probe: 2 matching docs (one missing field, one existing list) both updated; update_multiple and upsert also work",
+      "ok": true
+    },
+    {
+      "requirement": "Appending to one document must not modify other documents (no cross-document corruption)",
+      "verified_by": "probe: inserting the same dict twice then db.update(append('tags','urgent'), Query().project=='x') -> both docs became ['a','urgent','urgent'] and the caller's original dict was mutated",
+      "ok": false
+    },
+    {
+      "requirement": "Architecture constraints C1-C5 respected (no new deps, operations.py must not import table.py/database.py, table writes only via _update_table)",
+      "verified_by": "read ARCHITECTURE.md C1-C5 and tinydb/operations.py imports; diff touches only tinydb/operations.py and a new test file",
+      "ok": true
+    }
+  ],
+  "findings": [
+    {
+      "severity": "major",
+      "file": "tinydb/operations.py",
+      "line": 90,
+      "problem": "The existing-list branch mutates the stored list in place (`doc[field].append(value)`). Because Table.insert only shallow-copies documents (`table[doc_id] = dict(document)`), documents inserted from the same source dict share one list object, so appending to one document silently appends to the other documents as well (and to the caller's original dict). Assigning a new list (`doc[field] = doc[field] + [value]`) avoids the aliasing.",
+      "evidence": "probe: doc={'project':'x','tags':['a']}; db.insert(doc); db.insert(doc); db.update(append('tags','urgent'), Query().project=='x') -> [{'project':'x','tags':['a','urgent','urgent']}, {'project':'x','tags':['a','urgent','urgent']}]; original doc also became ['a','urgent','urgent']. With doc[field] = doc[field] + [value] the result is ['a','urgent'] per document."
+    },
+    {
+      "severity": "minor",
+      "file": "tinydb/operations.py",
+      "line": 96,
+      "problem": "File no longer ends with a newline (pycodestyle W292).",
+      "evidence": "python -m pycodestyle tinydb/operations.py -> 'tinydb/operations.py:96:21: W292 no newline at end of file'"
+    },
+    {
+      "severity": "minor",
+      "file": "docs/usage.rst",
+      "line": 310,
+      "problem": "The built-in operations list in the user documentation was not extended with `append(key, value)`, so the new operation is undocumented for users (docs/api.rst picks it up automatically via automodule).",
+      "evidence": "grep of docs/usage.rst shows the list 'delete/increment/decrement/add/subtract/set' with no mention of append"
+    },
+    {
+      "severity": "minor",
+      "file": "tests/test_autose_issue_4.py",
+      "line": 83,
+      "problem": "test_ac7_fail_fast_on_typeerror asserts a storage-dependent partial-update outcome (first document already updated when a later document raises) as if it were a contract; with JSONStorage nothing is persisted. This behaviour is pre-existing for any mutating callable and is not guaranteed by the issue.",
+      "evidence": "probe with JSONStorage: after the TypeError the raw file is {\"_default\": {\"1\": {\"id\": 1}, ...}} (no partial write), while with MemoryStorage doc1 is {'id':1,'tags':['x']}; the same leak reproduces with a plain user callable, so it is not introduced by this PR."
+    }
+  ],
+  "summary": "The append operation satisfies the issue's stated behaviour and respects the architecture constraints, but its in-place list mutation corrupts other documents that share the same list object, so the existing-list branch should assign a new list instead.",
+  "pr": 20,
+  "issue": 4,
+  "round": 1,
+  "variant": "isolated",
+  "models": [
+    "nim:minimaxai/minimax-m3.1-flash"
+  ],
+  "commands": [
+    "ls -la && cat ARCHITECTURE.md && cat tinydb/operations.py",
+    "git log --oneline -5 && git diff main...HEAD --stat && git status",
+    "grep -n \"C1\\|C2\\|C3\\|C4\\|C5\" ARCHITECTURE.md | head -40; echo ---; sed -n '1,120p' ARCHITECTURE.md",
+    "ls tests; echo ---; cat tinydb/table.py | sed -n '1,60p'; echo ---; grep -rn \"operations\" tinydb/ docs/ | head -30",
+    "grep -n \"def update\" -A 60 tinydb/table.py; echo ---; cat tests/test_operations.py",
+    "python -m pytest -q -p no:cacheprovider 2>&1 | tail -20",
+    "sed -n '427,560p' tinydb/table.py",
+    "grep -n \"_update_table\" -A 40 tinydb/table.py | sed -n '1,80p'",
+    "grep -n \"def _update_table\" -A 45 tinydb/table.py",
+    "grep -rn \"append\\|operations\" docs/usage.rst | sed -n '1,40p'; echo ---; sed -n '295,345p' docs/usage.rst",
+    "cat tinydb/storages.py | sed -n '1,120p'",
+    "cd /tmp && cat > probe1.py <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\n# Probe 1: does in-place mutation leak into storage when a later doc raises?\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'id': 1})\ndb.insert({'id': 2, 'tags': 'not-a-list'})\ndb.insert({'id': 3, 'tags': ['existing']})\ntry:\n    db.update(append('tags', 'x'), Query().id.test(lambda i: i in (1,2,3)))\nexcept TypeError as e:\n    print(\"TypeError:\", e)\nprint(\"doc1:\", db.get(Query().id == 1))\nprint(\"doc2:\", db.get(Query().id == 2))\nprint(\"doc3:\", db.get(Query().id == 3))\nEOF\npython probe1.py",
+    "cd /root 2>/dev/null; cd - >/dev/null; pwd; python -c \"\nimport sys; sys.path.insert(0,'.')\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'id': 1})\ndb.insert({'id': 2, 'tags': 'not-a-list'})\ndb.insert({'id': 3, 'tags': ['existing']})\ntry:\n    db.update(append('tags', 'x'), Query().id.test(lambda i: i in (1,2,3)))\nexcept TypeError as e:\n    print('TypeError:', e)\nprint('doc1:', db.get(Query().id == 1))\nprint('doc2:', db.get(Query().id == 2))\nprint('doc3:', db.get(Query().id == 3))\n\"",
+    "grep -n \"class MemoryStorage\" -A 30 tinydb/storages.py",
+    "python -c \"\nimport sys, json, tempfile, os; sys.path.insert(0,'.')\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage, JSONStorage\nfrom tinydb.operations import append\n\n# JSON storage: does the partial update persist?\nd = tempfile.mkdtemp()\np = os.path.join(d, 'db.json')\ndb = TinyDB(p)\ndb.insert({'id': 1})\ndb.insert({'id': 2, 'tags': 'not-a-list'})\ndb.insert({'id': 3, 'tags': ['existing']})\ntry:\n    db.update(append('tags', 'x'), Query().id.test(lambda i: i in (1,2,3)))\nexcept TypeError as e:\n    print('TypeError:', e)\ndb.close()\nprint('raw file:', open(p).read())\n\"",
+    "python -c \"\nimport sys; sys.path.insert(0,'.')\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\n# Probe: in-place mutation of an EXISTING list leaks into storage even if a later doc raises\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'id': 1, 'tags': ['a']})\ndb.insert({'id': 2, 'tags': 'not-a-list'})\ntry:\n    db.update(append('tags', 'x'), Query().id.test(lambda i: i in (1,2)))\nexcept TypeError as e:\n    print('TypeError:', e)\nprint('doc1 after failed update:', db.get(Query().id == 1))\nprint('storage memory:', db.storage.memory)\n\"",
+    "python -c \"\nimport sys; sys.path.insert(0,'.')\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import set as setop\n\n# Pre-existing behavior check: does 'set' also leak on failure with MemoryStorage?\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'id': 1, 'v': 0})\ndb.insert({'id': 2, 'v': 'str'})\ndef op(doc):\n    doc['v'] = doc['v'] + 1  # raises TypeError on doc 2\ntry:\n    db.update(op, Query().id.test(lambda i: i in (1,2)))\nexcept TypeError as e:\n    print('TypeError:', e)\nprint('doc1:', db.get(Query().id == 1))\nprint('storage:', db.storage.memory)\n\"",
+    "python -c \"\nimport sys; sys.path.insert(0,'.')\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\n# Probe: tuple field (immutable sequence) -> TypeError expected\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'tags': ('a','b')})\ntry:\n    db.update(append('tags','x'))\nexcept TypeError as e:\n    print('tuple -> TypeError:', e)\n\n# Probe: nested field path 'a.b'?\ndb2 = TinyDB(storage=MemoryStorage)\ndb2.insert({'a': {'b': ['x']}})\ntry:\n    db2.update(append('a.b','y'))\n    print('nested result:', db2.all())\nexcept Exception as e:\n    print('nested raised:', type(e).__name__, e)\n\"",
+    "cat tinydb/__init__.py; echo ---; sed -n '85,110p' docs/api.rst; echo ---; grep -rn \"operations\" tinydb/mypy_plugin.py | head",
+    "python -m mypy tinydb/operations.py 2>&1 | tail -5; echo \"--- flake/ruff:\"; python -m ruff check tinydb/ 2>&1 | tail -10",
+    "cat pytest.ini; echo ---; cat pyproject.toml; echo ---; cat tests/conftest.py",
+    "python -m pytest -q -p no:cacheprovider tests/test_autose_issue_4.py 2>&1 | tail -5; echo \"=== check test would fail without fix ===\"; python - <<'EOF'\nimport re\nsrc = open('tinydb/operations.py').read()\n# simulate removing append\nsrc2 = src.split('def append(')[0]\nopen('/tmp/ops_backup.py','w').write(src)\nopen('tinydb/operations.py','w').write(src2)\nEOF\npython -m pytest -q -p no:cacheprovider tests/test_autose_issue_4.py 2>&1 | tail -8; cp /tmp/ops_backup.py tinydb/operations.py; git diff --stat",
+    "ls .github/workflows; cat .github/workflows/*.yml 2>/dev/null | head -80",
+    "python -m pycodestyle tinydb/operations.py tests/test_autose_issue_4.py 2>&1 | head -30; echo \"exit=$?\"",
+    "cat .github/workflows/ci-workflow.yml",
+    "git show --stat HEAD; echo ---; git show HEAD -- tinydb/operations.py | head -60",
+    "python -m pytest --mypy -m mypy tinydb tests -q -p no:cacheprovider 2>&1 | tail -30",
+    "grep -n \"class CachingMiddleware\" -A 60 tinydb/middlewares.py",
+    "python -c \"\nimport sys; sys.path.insert(0,'.')\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.middlewares import CachingMiddleware\nfrom tinydb.operations import append\n\n# CachingMiddleware interaction\ndb = TinyDB(storage=CachingMiddleware(MemoryStorage))\ndb.insert({'id':1,'tags':['a']})\ndb.insert({'id':2,'tags':'bad'})\ntry:\n    db.update(append('tags','x'), Query().id.test(lambda i: i in (1,2)))\nexcept TypeError as e:\n    print('TypeError:', e)\nprint('doc1:', db.get(Query().id==1))\nprint('cache:', db.storage.cache)\n\"",
+    "python -c \"\nimport sys; sys.path.insert(0,'.')\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\n# Aliasing probe: two documents sharing the same list object\nshared = ['a']\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'id':1, 'tags': shared})\ndb.insert({'id':2, 'tags': shared})\nprint('before:', db.all())\ndb.update(append('tags','x'), Query().id == 1)\nprint('after :', db.all())\nprint('shared:', shared)\n\"",
+    "python -c \"\nimport sys; sys.path.insert(0,'.')\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\n# Probe: does appending to a doc returned by db.get mutate the stored doc?\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'id':1,'tags':['a']})\ndoc = db.get(Query().id==1)\ndoc['tags'].append('mutated')\nprint('after mutating returned doc:', db.all())\n\"",
+    "python -c \"\nimport sys; sys.path.insert(0,'.')\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\n# Realistic: insert the same document dict twice (common pattern)\ndoc = {'project':'x','tags':['a']}\ndb = TinyDB(storage=MemoryStorage)\ndb.insert(doc)\ndb.insert(doc)\ndb.update(append('tags','urgent'), Query().project=='x')\nprint('all:', db.all())\nprint('original doc:', doc)\n\"",
+    "python -c \"\nimport sys; sys.path.insert(0,'.')\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\n# Probe: append to a list that is also referenced by the value being appended\ndb = TinyDB(storage=MemoryStorage)\nlst = ['a']\ndb.insert({'id':1,'tags':lst})\ndb.update(append('tags', lst))\nprint('self-append:', db.all())\n\"",
+    "python -c \"\nimport sys; sys.path.insert(0,'.')\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\n# update_multiple with append\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'id':1,'tags':['a']})\ndb.update_multiple([(append('tags','x'), Query().id==1)])\nprint('update_multiple:', db.all())\n\n# upsert with append\ndb2 = TinyDB(storage=MemoryStorage)\ndb2.upsert({'id':1}, Query().id==1)\ndb2.upsert(append('tags','x'), Query().id==1)\nprint('upsert:', db2.all())\n\"",
+    "python -c \"\nimport sys; sys.path.insert(0,'.')\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\n\n# Alternative implementation avoids aliasing:\ndef append2(field, value):\n    def transform(doc):\n        if field not in doc:\n            doc[field] = [value]\n        elif isinstance(doc[field], list):\n            doc[field] = doc[field] + [value]\n        else:\n            raise TypeError('not a list')\n    return transform\n\ndoc = {'project':'x','tags':['a']}\ndb = TinyDB(storage=MemoryStorage)\ndb.insert(doc); db.insert(doc)\ndb.update(append2('tags','urgent'), Query().project=='x')\nprint('alt impl all:', db.all())\n\""
+  ],
+  "steps": 19,
+  "prompt_tokens": 349602,
+  "completion_tokens": 7682,
+  "sha": "b1a5ac61104986c10de3b084465b5e6ded358c32",
+  "budget_used": 357284,
+  "budget_limit": 400000
+}

@@ -1,0 +1,36 @@
+diff --git a/tinydb/table.py b/tinydb/table.py
+index 76470aa..faae341 100644
+--- a/tinydb/table.py
++++ b/tinydb/table.py
+@@ -2,6 +2,7 @@
+ This module implements tables, the central place for accessing and manipulating
+ data in TinyDB.
+ """
++import copy
+ 
+ from collections.abc import Callable, Iterable, Iterator, Mapping, MutableMapping
+ from typing import (
+@@ -836,8 +837,17 @@ class Table:
+             for doc_id, doc in raw_table.items()
+         }
+ 
++        # Deep copy the table to ensure atomicity: the updater works on a copy,
++        # and the original storage data is only modified on success.
++        table = copy.deepcopy(table)
++
+         # Perform the table update operation
+-        updater(table)
++        try:
++            updater(table)
++        except Exception:
++            # On failure, don't write to storage and don't clear the cache.
++            # The exception propagates to the caller.
++            raise
+ 
+         # Convert the document IDs back to strings.
+         # This is required as some storages (most notably the JSON file format)
+
+
+## Why this stage stopped
+
+Stage `implement`: token budget exhausted: used 2,462,925 of 2,500,000, next call could need up to 49,951.

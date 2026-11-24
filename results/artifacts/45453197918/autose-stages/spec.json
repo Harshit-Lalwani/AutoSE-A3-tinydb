@@ -1,0 +1,49 @@
+{
+  "summary": "Make Table.update() and Table.remove() accept numeric string document IDs (e.g., '1', '2') by converting them to integers, matching the existing behaviour of Table.get() and Table.contains(). Non-existent IDs are silently skipped; return values are lists of integer IDs that were actually updated/removed.",
+  "issue_type": "bug",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a TinyDB table with documents inserted (doc_ids 1, 2, 3 assigned)",
+      "when": "calling table.update({'a': 10}, doc_ids=['1', '2'])",
+      "then": "the documents with doc_ids 1 and 2 are updated, and the method returns [1, 2]"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1",
+      "given": "a TinyDB table with documents inserted (doc_ids 1, 2, 3 assigned)",
+      "when": "calling table.update({'a': 10}, doc_ids=['1', '999']) where 999 does not exist",
+      "then": "only document 1 is updated, and the method returns [1]"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-2",
+      "given": "a TinyDB table with documents inserted (doc_ids 1, 2, 3 assigned)",
+      "when": "calling table.remove(doc_ids=['2', '3'])",
+      "then": "documents with doc_ids 2 and 3 are removed, and the method returns [2, 3]"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-2",
+      "given": "a TinyDB table with documents inserted (doc_ids 1, 2, 3 assigned)",
+      "when": "calling table.remove(doc_ids=['2', '999']) where 999 does not exist",
+      "then": "only document 2 is removed, and the method returns [2]"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "NFR-1",
+      "given": "a TinyDB table with documents inserted (doc_ids 1, 2, 3 assigned)",
+      "when": "calling table.update({'a': 10}, doc_ids=[1, 2]) and table.remove(doc_ids=[3]) with integer IDs",
+      "then": "behaviour is identical to before the change: updates/removes the correct documents and returns [1, 2] and [3] respectively"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "Non-numeric string IDs (e.g., 'abc', '') raise ValueError, matching the behaviour of Table.get() and Table.contains()",
+      "default_used": "raise ValueError"
+    }
+  ],
+  "blocking_questions": []
+}

@@ -1,0 +1,155 @@
+diff --git a/tests/test_autose_issue_4.py b/tests/test_autose_issue_4.py
+new file mode 100644
+index 0000000..548abf2
+--- /dev/null
++++ b/tests/test_autose_issue_4.py
+@@ -0,0 +1,110 @@
++"""
++Tests for the append operation (issue #4).
++"""
++from tinydb import where
++from tinydb.operations import append
++
++
++def test_ac1_append_importable():
++    """AC-1: append is a callable class available in the module's namespace."""
++    from tinydb.operations import append
++    assert callable(append)
++    # It's a factory function that returns a transform
++    transform = append('tags', 'c')
++    assert callable(transform)
++
++
++def test_ac2_append_to_existing_list(db):
++    """AC-2: Append to existing list field."""
++    # Clear existing data and insert test data
++    db.truncate()
++    db.insert({'tags': ['a']})
++    db.insert({'tags': ['b']})
++    db.update(append('tags', 'c'), where('tags').exists())
++    docs = db.all()
++    assert len(docs) == 2
++    tags_values = [doc['tags'] for doc in docs]
++    assert ['a', 'c'] in tags_values
++    assert ['b', 'c'] in tags_values
++
++
++def test_ac3_append_creates_new_list(db):
++    """AC-3: Create field as single-element list if missing."""
++    db.truncate()
++    db.insert({'name': 'doc'})
++    db.update(append('tags', 'new'), where('name') == 'doc')
++    doc = db.get(where('name') == 'doc')
++    assert doc['tags'] == ['new']
++
++
++def test_ac4_append_raises_typeerror_on_non_list(db):
++    """AC-4: TypeError raised if field exists but is not a list."""
++    db.truncate()
++    db.insert({'tags': 'not-a-list'})
++    try:
++        db.update(append('tags', 'x'), where('tags').exists())
++        assert False, "Expected TypeError"
++    except TypeError as e:
++        assert "not a list" in str(e)
++    # Document remains unchanged
++    doc = db.get(where('tags').exists())
++    assert doc['tags'] == 'not-a-list'
++
++
++def test_ac5_append_fail_fast_on_mixed_documents(db):
++    """AC-5: TypeError on second document; first may be updated, exception propagates."""
++    db.truncate()
++    db.insert({'tags': ['ok']})
++    db.insert({'tags': 'bad'})
++    try:
++        db.update(append('tags', 'x'), where('tags').exists())
++        assert False, "Expected TypeError"
++    except TypeError:
++        pass
++    # First document may or may not be updated (per A-2)
++    # We just verify the exception propagated
++
++
++def test_ac6_append_applies_to_all_matching_documents(db):
++    """AC-6: Operation applied to all matching documents."""
++    db.truncate()
++    db.insert({'tags': ['a']})
++    db.insert({'tags': ['b']})
++    db.insert({'tags': ['c']})
++    db.update(append('tags', 'x'), where('tags').exists())
++    docs = db.all()
++    assert len(docs) == 3
++    for doc in docs:
++        assert doc['tags'][-1] == 'x'
++        assert len(doc['tags']) == 2
++
++
++def test_ac7_append_follows_same_protocol_as_add(db):
++    """AC-7: append follows the same protocol as add (factory function returning transform)."""
++    from tinydb.operations import add
++    # Both are callable factory functions
++    assert callable(append)
++    assert callable(add)
++    # Both return a transform callable
++    append_transform = append('field', 'value')
++    add_transform = add('field', 1)
++    assert callable(append_transform)
++    assert callable(add_transform)
++    # Both mutate the document in place
++    doc1 = {'field': [1, 2]}
++    doc2 = {'field': 5}
++    append_transform(doc1)
++    add_transform(doc2)
++    assert doc1 == {'field': [1, 2, 'value']}
++    assert doc2 == {'field': 6}
++
++
++def test_append_with_various_value_types(db):
++    """Additional test: append accepts any value type."""
++    db.truncate()
++    db.insert({'tags': []})
++    db.update(append('tags', 42), where('tags').exists())
++    db.update(append('tags', {'nested': 'dict'}), where('tags').exists())
++    db.update(append('tags', None), where('tags').exists())
++    doc = db.get(where('tags').exists())
++    assert doc['tags'] == [42, {'nested': 'dict'}, None]
+\ No newline at end of file
+diff --git a/tinydb/operations.py b/tinydb/operations.py
+index 3f6c6ab..82a7012 100644
+--- a/tinydb/operations.py
++++ b/tinydb/operations.py
+@@ -73,3 +73,32 @@ def decrement(field: str) -> Callable[[MutableMapping], None]:
+         doc[field] -= 1
+ 
+     return transform
++
++
++def append(field: str, value: Any) -> Callable[[MutableMapping], None]:
++    """
++    Append ``value`` to a list field in the document.
++
++    If the field does not exist, it is created as a single-element list.
++    If the field exists but is not a list, a TypeError is raised.
++    """
++    def transform(doc: MutableMapping):
++        if field not in doc:
++            doc[field] = [value]
++        elif isinstance(doc[field], list):
++            doc[field].append(value)
++        else:
++            raise TypeError(f"Field '{field}' is not a list")
++
++    return transform
++
++
++__all__ = (
++    'delete',
++    'add',
++    'subtract',
++    'set',
++    'increment',
++    'decrement',
++    'append',
++)
+\ No newline at end of file

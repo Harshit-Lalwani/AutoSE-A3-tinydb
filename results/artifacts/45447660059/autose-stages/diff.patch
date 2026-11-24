@@ -1,0 +1,190 @@
+diff --git a/tinydb/table.py b/tinydb/table.py
+index 76470aa..9e5406b 100644
+--- a/tinydb/table.py
++++ b/tinydb/table.py
+@@ -232,10 +232,18 @@ class Table:
+ 
+         return doc_ids
+ 
+-    def all(self) -> list[Document]:
++    def all(
++        self,
++        sort_by: Optional[list[str]] = None,
++        limit: Optional[int] = None,
++        offset: int = 0
++    ) -> list[Document]:
+         """
+         Get all documents stored in the table.
+ 
++        :param sort_by: List of field names to sort by. Prefix with '-' for descending.
++        :param limit: Maximum number of documents to return (None for no limit)
++        :param offset: Number of documents to skip
+         :returns: a list with all documents.
+         """
+ 
+@@ -244,9 +252,16 @@ class Table:
+         # of all documents by using the ``list`` constructor to perform the
+         # conversion.
+ 
+-        return list(iter(self))
++        docs = list(iter(self))
++        return self._apply_sort_and_paging(docs, sort_by, limit, offset)
+ 
+-    def search(self, cond: QueryLike) -> list[Document]:
++    def search(
++        self,
++        cond: QueryLike,
++        sort_by: Optional[list[str]] = None,
++        limit: Optional[int] = None,
++        offset: int = 0
++    ) -> list[Document]:
+         """
+         Search for all documents matching a 'where' cond.
+ 
+@@ -257,6 +272,9 @@ class Table:
+         what a later identical search returns.
+ 
+         :param cond: the condition to check against
++        :param sort_by: List of field names to sort by. Prefix with '-' for descending.
++        :param limit: Maximum number of documents to return (None for no limit)
++        :param offset: Number of documents to skip
+         :returns: list of matching documents
+         """
+ 
+@@ -264,37 +282,37 @@ class Table:
+         # query
+         cached_results = self._query_cache.get(cond)
+         if cached_results is not None:
+-            return cached_results[:]
+-
+-        # Perform the search by applying the query to all documents.
+-        # Then, only if the document matches the query, convert it
+-        # to the document class and document ID class.
+-        docs = [
+-            self.document_class(doc, self.document_id_class(doc_id))
+-            for doc_id, doc in self._read_table().items()
+-            if cond(doc)
+-        ]
++            docs = cached_results[:]
++        else:
++            # Perform the search by applying the query to all documents.
++            # Then, only if the document matches the query, convert it
++            # to the document class and document ID class.
++            docs = [
++                self.document_class(doc, self.document_id_class(doc_id))
++                for doc_id, doc in self._read_table().items()
++                if cond(doc)
++            ]
+ 
+-        # Only cache cacheable queries.
+-        #
+-        # This weird `getattr` dance is needed to make MyPy happy as
+-        # it doesn't know that a query might have a `is_cacheable` method
+-        # that is not declared in the `QueryLike` protocol due to it being
+-        # optional.
+-        # See: https://github.com/python/mypy/issues/1424
+-        #
+-        # Note also that by default we expect custom query objects to be
+-        # cacheable (which means they need to have a stable hash value).
+-        # This is to keep consistency with TinyDB's behavior before
+-        # `is_cacheable` was introduced which assumed that all queries
+-        # are cacheable.
+-        is_cacheable: Callable[[], bool] = getattr(cond, 'is_cacheable',
+-                                                   lambda: True)
+-        if is_cacheable():
+-            # Update the query cache
+-            self._query_cache[cond] = docs[:]
+-
+-        return docs
++            # Only cache cacheable queries.
++            #
++            # This weird `getattr` dance is needed to make MyPy happy as
++            # it doesn't know that a query might have a `is_cacheable` method
++            # that is not declared in the `QueryLike` protocol due to it being
++            # optional.
++            # See: https://github.com/python/mypy/issues/1424
++            #
++            # Note also that by default we expect custom query objects to be
++            # cacheable (which means they need to have a stable hash value).
++            # This is to keep consistency with TinyDB's behavior before
++            # `is_cacheable` was introduced which assumed that all queries
++            # are cacheable.
++            is_cacheable: Callable[[], bool] = getattr(cond, 'is_cacheable',
++                                                       lambda: True)
++            if is_cacheable():
++                # Update the query cache
++                self._query_cache[cond] = docs[:]
++
++        return self._apply_sort_and_paging(docs, sort_by, limit, offset)
+ 
+     @overload
+     def get(self) -> NoReturn: ...
+@@ -741,6 +759,68 @@ class Table:
+             # Convert documents to the document class
+             yield self.document_class(doc, self.document_id_class(doc_id))
+ 
++
++    def _apply_sort_and_paging(
++        self,
++        docs: list[Document],
++        sort_by: Optional[list[str]] = None,
++        limit: Optional[int] = None,
++        offset: int = 0
++    ) -> list[Document]:
++        """
++        Apply sorting and paging to a list of documents.
++
++        :param docs: List of documents to process
++        :param sort_by: List of field names to sort by. Prefix with '-' for descending.
++        :param limit: Maximum number of documents to return (None for no limit)
++        :param offset: Number of documents to skip
++        :returns: Processed list of documents
++        """
++        # Validate sort_by
++        if sort_by is not None:
++            if not isinstance(sort_by, list):
++                raise TypeError('sort_by must be a list of strings')
++            for field in sort_by:
++                if not isinstance(field, str):
++                    raise TypeError('sort_by must be a list of strings')
++
++        # Validate limit
++        if limit is not None:
++            if not isinstance(limit, int):
++                raise TypeError('limit must be an integer or None')
++            if limit < 0:
++                raise ValueError('limit must be non-negative')
++
++        # Validate offset
++        if not isinstance(offset, int):
++            raise TypeError('offset must be an integer')
++        if offset < 0:
++            raise ValueError('offset must be non-negative')
++
++        # Apply sorting if requested
++        if sort_by:
++            # Build sort keys in reverse order (last key first) for stable multi-field sort
++            for field in reversed(sort_by):
++                reverse = False
++                if field.startswith('-'):
++                    reverse = True
++                    field = field[1:]
++
++                def make_key_func(f):
++                    def key_func(doc):
++                        return doc.get(f)
++                    return key_func
++
++                docs.sort(key=make_key_func(field), reverse=reverse)
++
++        # Apply paging
++        if offset:
++            docs = docs[offset:]
++        if limit is not None:
++            docs = docs[:limit]
++
++        return docs
++
+     def _get_next_id(self):
+         """
+         Return the ID for a newly inserted document.

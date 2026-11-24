@@ -1,0 +1,77 @@
+{
+  "issue": 2,
+  "variant": "default",
+  "branch": "autose/issue-2",
+  "history": [
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 1,
+      "ok": false,
+      "summary": "2 blocking question(s) need a maintainer's answer",
+      "seconds": 90.0,
+      "steps": 1,
+      "prompt_tokens": 7374,
+      "completion_tokens": 3844,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 2,
+      "ok": true,
+      "summary": "14 testable ACs",
+      "seconds": 120.7,
+      "steps": 1,
+      "prompt_tokens": 7630,
+      "completion_tokens": 4844,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 1,
+      "ok": false,
+      "summary": "tinydb/table.py: symbol 'Table._normalize_doc_id' not found (mark it under 'new_symbols' if it is new)",
+      "seconds": 268.2,
+      "steps": 26,
+      "prompt_tokens": 288986,
+      "completion_tokens": 9762,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 2,
+      "ok": false,
+      "summary": "tinydb/table.py: symbol 'Table._normalize_doc_id' not found (mark it under 'new_symbols' if it is new)",
+      "seconds": 253.6,
+      "steps": 26,
+      "prompt_tokens": 278583,
+      "completion_tokens": 9510,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    }
+  ],
+  "tokens": {
+    "prompt": 582573,
+    "completion": 27960
+  },
+  "review_round": 0,
+  "outcome": "stopped: design check failed: tinydb/table.py: symbol 'Table._normalize_doc_id' not found (mark it under 'new_symbols' if it is new)"
+}

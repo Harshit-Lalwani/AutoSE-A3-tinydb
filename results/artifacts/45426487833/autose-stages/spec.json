@@ -1,0 +1,54 @@
+{
+  "summary": "Make MemoryStorage writes atomic (all-or-nothing) and keep query cache consistent with committed data, matching JSONStorage behaviour.",
+  "issue_type": "bug",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.update(delete('tmp')) is called and raises KeyError",
+      "then": "db.all() returns [{'name': 'a', 'tmp': 1}, {'name': 'b'}] (unchanged)"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.remove(Query().tmp.exists()) is called and raises KeyError on the second document",
+      "then": "db.all() returns the original two documents (unchanged)"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-2",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}] and a prior search db.search(Query().tmp.exists()) that returned [{'name': 'a', 'tmp': 1}]",
+      "when": "db.update(delete('tmp')) is called and raises KeyError",
+      "then": "db.search(Query().tmp.exists()) returns [{'name': 'a', 'tmp': 1}] (cache reflects pre-failure state)"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-3",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a'}]",
+      "when": "db.update({'name': 'b'}) succeeds",
+      "then": "db.all() returns [{'name': 'b'}] and subsequent searches reflect the change"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "NFR-1",
+      "given": "the fixed MemoryStorage module",
+      "when": "imported in a Python 3.8+ environment with no extra packages",
+      "then": "import succeeds and all existing TinyDB tests pass"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "MemoryStorage.write(data) receives the complete document list each call; atomicity can be implemented by snapshotting the list before mutation and restoring on exception",
+      "default_used": "Conservative default based on TinyDB storage pattern"
+    },
+    {
+      "id": "A-2",
+      "assumption": "Query cache invalidation occurs only on successful write (matching JSONStorage behaviour)",
+      "default_used": "Invalidate cache after successful write; leave cache untouched on failed write"
+    }
+  ],
+  "blocking_questions": []
+}

@@ -1,0 +1,77 @@
+{
+  "issue": 5,
+  "variant": "default",
+  "branch": "autose/issue-5",
+  "history": [
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 1,
+      "ok": false,
+      "summary": "3 blocking question(s) need a maintainer's answer; AC-6: 'then' uses untestable wording 'correctly'; AC-7: 'then' uses untestable wording 'reasonable'",
+      "seconds": 135.2,
+      "steps": 1,
+      "prompt_tokens": 7216,
+      "completion_tokens": 4569,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 2,
+      "ok": true,
+      "summary": "11 testable ACs",
+      "seconds": 109.9,
+      "steps": 1,
+      "prompt_tokens": 7622,
+      "completion_tokens": 4407,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 1,
+      "ok": false,
+      "summary": "tinydb/table.py: symbol 'Table._get_field_value' not found (mark it under 'new_symbols' if it is new); tinydb/table.py: symbol 'Table._sort_docs' not found (mark it under 'new_symbols' if it is new)",
+      "seconds": 242.4,
+      "steps": 26,
+      "prompt_tokens": 272871,
+      "completion_tokens": 7361,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 2,
+      "ok": false,
+      "summary": "no ```json block with a non-empty 'files' list",
+      "seconds": 229.0,
+      "steps": 20,
+      "prompt_tokens": 178888,
+      "completion_tokens": 8500,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 19,
+      "stopped": "finished"
+    }
+  ],
+  "tokens": {
+    "prompt": 466597,
+    "completion": 24837
+  },
+  "review_round": 0,
+  "outcome": "stopped: design check failed: no ```json block with a non-empty 'files' list"
+}

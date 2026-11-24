@@ -1,0 +1,117 @@
+{
+  "verdict": "request_changes",
+  "category": "code",
+  "requirements": [
+    {
+      "requirement": "Provide an `append` operation in tinydb.operations usable as db.update(append('tags','urgent'), Query().project == 'x')",
+      "verified_by": "python -m pytest -q -p no:cacheprovider (241 passed) + probe: db.update(append('tags','z'), doc_ids=[1,2]) -> [1, 2]",
+      "ok": true
+    },
+    {
+      "requirement": "Missing field is created as a single-element list",
+      "verified_by": "probe: db.insert({'id':1}); db.update(append('tags','x'), ...) -> {'id': 1, 'tags': ['x']}",
+      "ok": true
+    },
+    {
+      "requirement": "Existing list gets the value appended at the end",
+      "verified_by": "probe: {'id':1,'tags':['a']} -> {'id':1,'tags':['a','b']}; empty list -> ['first']",
+      "ok": true
+    },
+    {
+      "requirement": "Non-list field raises TypeError instead of silently doing something weird",
+      "verified_by": "probe: tags='not-a-list' -> TypeError: Field 'tags' is not a list; tuple field also raises TypeError",
+      "ok": true
+    },
+    {
+      "requirement": "Operation applies to all matching documents",
+      "verified_by": "probe: two matching docs (one missing field, one existing list) both updated; tests/test_autose_issue_4.py::test_ac6_append_updates_multiple_documents",
+      "ok": true
+    },
+    {
+      "requirement": "Architecture constraints C1-C5 respected (no table/database imports in operations.py, no new runtime dependency, writes only via Table._update_table)",
+      "verified_by": "read ARCHITECTURE.md C1-C5; tinydb/operations.py imports only collections.abc/typing; python -m mypy tinydb/operations.py -> Success",
+      "ok": true
+    },
+    {
+      "requirement": "Error semantics must be consistent across storages (PR test_ac7 asserts partial update of the first document)",
+      "verified_by": "probe with JSONStorage: TypeError raised and doc1 unchanged ({'project':'x','id':1}), vs MemoryStorage where doc1 is mutated only because MemoryStorage.read() returns the live dict",
+      "ok": false
+    }
+  ],
+  "findings": [
+    {
+      "severity": "major",
+      "file": "tests/test_autose_issue_4.py",
+      "line": 96,
+      "problem": "test_ac7_fail_fast_on_typeerror asserts that the first matching document is updated before the TypeError aborts the update. This is only true with MemoryStorage, whose read() returns the live storage dict so the in-place mutation leaks into storage even though Table._update_table never writes when the updater raises. With the default JSONStorage the update is rolled back entirely, so the test encodes storage-dependent, accidental behaviour and would fail with the default storage.",
+      "evidence": "JSONStorage probe: 'raised: Field \\'tags\\' is not a list' then \"doc1: {'project': 'x', 'id': 1}\" (unchanged); MemoryStorage probe: \"docs after: [{'id': 1, 'tags': ['x']}, ...]\"; MemoryStorage aliasing confirmed: mutating s.read()['_default']['1']['a'] changed s.read() to {'a': 99}"
+    },
+    {
+      "severity": "minor",
+      "file": "README.md",
+      "line": 5,
+      "problem": "PR adds an unrelated video link to the README; not required by the issue.",
+      "evidence": "git diff origin/main...HEAD --stat shows README.md, architecture/decisions/ADR-013.md, ADR-014.md and workflow/agent/* changes unrelated to the append operation"
+    },
+    {
+      "severity": "minor",
+      "file": "workflow/agent/agent.py",
+      "line": 144,
+      "problem": "PR bundles unrelated changes to the repository's agent harness (context compaction, ADR-014) into a library feature PR; these are not exercised by the pytest suite (pytest.ini testpaths = tests).",
+      "evidence": "python -m pytest -q -p no:cacheprovider collects only tests/ (241 passed); workflow/agent/test_budget.py is not collected"
+    }
+  ],
+  "summary": "The append operation itself correctly implements all issue requirements and the full suite passes, but the PR's fail-fast test asserts storage-dependent partial-update semantics that only hold with MemoryStorage and contradict the all-or-nothing behaviour under the default JSONStorage.",
+  "pr": 20,
+  "issue": 4,
+  "round": 2,
+  "variant": "isolated",
+  "models": [
+    "nim:minimaxai/minimax-m3.1-flash"
+  ],
+  "commands": [
+    "pwd && git status --short && git log --oneline -5 && ls",
+    "cat ARCHITECTURE.md 2>/dev/null || find . -name ARCHITECTURE.md -print",
+    "sed -n '1,200p' tinydb/operations.py && echo ---- && sed -n '1,260p' tinydb/database.py",
+    "grep -n \"def update\" -A 60 tinydb/table.py",
+    "git diff main...HEAD --stat && git diff main...HEAD -- tinydb/operations.py",
+    "ls tests && grep -rn \"operations\" tests | head -30",
+    "sed -n 427,520p tinydb/table.py",
+    "git branch -a && git log --oneline -3 --stat",
+    "cat tests/test_operations.py",
+    "git diff origin/main...HEAD --stat; git diff origin/main...HEAD -- tinydb/operations.py tests/test_autose_issue_4.py | head -100",
+    "python -m pytest -q -p no:cacheprovider 2>&1 | tail -20",
+    "cd /srv/autose/ws && python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\n# Probe 1: fail-fast semantics - does first doc get persisted when second raises?\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'id':1})\ndb.insert({'id':2,'tags':'not-a-list'})\ndb.insert({'id':3,'tags':['existing']})\ntry:\n    db.update(append('tags','x'), Query().id.exists())\nexcept TypeError as e:\n    print(\"TypeError:\", e)\nprint(\"docs after:\", db.all())\n\n# Probe 2: check storage state directly\nprint(\"storage:\", db.storage.read())\nEOF",
+    "cd /srv/autose/ws && python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\n# Probe: tuple field? subclass of list? nested field path 'a.b'?\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'id':1,'tags':('a','b')})\ntry:\n    db.update(append('tags','c'), Query().id==1)\nexcept TypeError as e:\n    print(\"tuple ->\", type(e).__name__, e)\n\n# nested field\ndb.insert({'id':2,'meta':{'tags':['x']}})\ndb.update(append('meta.tags','y'), Query().id==2)\nprint(\"nested:\", db.get(Query().id==2))\n\n# list subclass\nclass MyList(list): pass\ndb.insert({'id':3,'tags':MyList(['a'])})\ndb.update(append('tags','b'), Query().id==3)\nprint(\"subclass:\", db.get(Query().id==3), type(db.get(Query().id==3)['tags']))\nEOF",
+    "cd /srv/autose/ws && grep -n \"_update_table\" -A 40 tinydb/table.py | sed -n '1,80p'",
+    "cd /srv/autose/ws && grep -rn \"append\" docs/ README.rst | head -20; grep -rn \"operations\" docs/*.rst | head",
+    "cd /srv/autose/ws && grep -n \"def _update_table\" -A 45 tinydb/table.py",
+    "cd /srv/autose/ws && grep -n \"def _read_table\" -A 30 tinydb/table.py",
+    "cd /srv/autose/ws && python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.operations import append\nimport tempfile, os, json\n\npath = tempfile.mktemp(suffix='.json')\ndb = TinyDB(path)\ndb.insert({'id':1})\ndb.insert({'id':2,'tags':'not-a-list'})\ndb.insert({'id':3,'tags':['existing']})\ntry:\n    db.update(append('tags','x'), Query().id.exists())\nexcept TypeError as e:\n    print(\"TypeError:\", e)\ndb.close()\nprint(\"file:\", open(path).read())\nos.remove(path)\nEOF",
+    "cd /srv/autose/ws && python - <<'EOF'\n# Probe: does append mutate the caller's list object? and does it share the value?\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'id':1,'tags':['a']})\ndb.update(append('tags','b'), Query().id==1)\nprint(db.all())\n# value object identity\nv = {'k':1}\ndb.insert({'id':2})\ndb.update(append('vals', v), Query().id==2)\nprint(db.get(Query().id==2)['vals'][0] is v)\nEOF",
+    "cd /srv/autose/ws && cat tinydb/storages.py | sed -n '1,120p'",
+    "cd /srv/autose/ws && grep -rn \"append\" docs/api.rst docs/usage.rst | head; grep -rn \"operations\" -A 20 docs/api.rst | sed -n '1,60p'",
+    "cd /srv/autose/ws && cat pytest.ini && ls workflow/agent/ && python workflow/agent/test_budget.py 2>&1 | tail -5",
+    "cd /srv/autose/ws && git diff origin/main...HEAD -- workflow/agent/agent.py",
+    "cd /srv/autose/ws && ls -la && git show --stat HEAD && git show --stat HEAD~1",
+    "cd /srv/autose/ws && git ls-tree -r HEAD --name-only | head -50",
+    "cd /srv/autose/ws && git diff origin/main...HEAD --stat && git ls-tree -r origin/main --name-only | grep -c workflow; git ls-tree -r HEAD --name-only | grep -c workflow",
+    "cd /srv/autose/ws && git diff origin/main...HEAD -- tinydb/operations.py",
+    "cd /srv/autose/ws && cat .gitignore && git status --short --ignored | head -20 && git sparse-checkout list 2>&1 | head",
+    "cd /srv/autose/ws && git show HEAD:workflow/agent/agent.py | sed -n '130,215p'",
+    "cd /srv/autose/ws && cat tinydb/__init__.py && grep -rn \"operations\" tinydb/*.py",
+    "cd /srv/autose/ws && python - <<'EOF'\n# Probe: does the append op work with doc_ids path and with no condition?\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'id':1,'tags':['a']})\ndb.insert({'id':2})\nprint(db.update(append('tags','z'), doc_ids=[1,2]))\nprint(db.all())\n# no condition -> all docs\ndb.update(append('tags','q'))\nprint(db.all())\nEOF",
+    "cd /srv/autose/ws && python - <<'EOF'\n# Probe: replicate PR test_ac7 with JSONStorage (default storage)\nimport tempfile, os\nfrom tinydb import TinyDB, Query\nfrom tinydb.operations import append\n\npath = tempfile.mktemp(suffix='.json')\ndb = TinyDB(path)\ndb.insert({'project':'x','id':1})\ndb.insert({'project':'x','id':2,'tags':'not-a-list'})\ndb.insert({'project':'x','id':3,'tags':['existing']})\ntry:\n    db.update(append('tags','x'), Query().project=='x')\nexcept TypeError as e:\n    print(\"raised:\", e)\nprint(\"doc1:\", db.get(Query().id==1))\nprint(\"doc3:\", db.get(Query().id==3))\ndb.close(); os.remove(path)\nEOF",
+    "cd /srv/autose/ws && python - <<'EOF'\n# Probe: is the \"first doc updated\" behavior in the PR test actually due to MemoryStorage aliasing?\nfrom tinydb.storages import MemoryStorage\ns = MemoryStorage()\ns.write({'_default': {'1': {'a': 1}}})\nd = s.read()\nd['_default']['1']['a'] = 99\nprint(\"after mutation, storage:\", s.read())\nEOF",
+    "cd /srv/autose/ws && cat mypy.ini && (python -m mypy tinydb/operations.py 2>&1 | tail -5 || echo \"mypy not available\")",
+    "cd /srv/autose/ws && python -m pytest tests/test_autose_issue_4.py -q -p no:cacheprovider 2>&1 | tail -5",
+    "cd /srv/autose/ws && git show HEAD:workflow/agent/test_budget.py > /tmp/test_budget.py && git show HEAD:workflow/agent/agent.py > /tmp/agent.py && cd /tmp && python test_budget.py 2>&1 | tail -20",
+    "cd /srv/autose/ws && git show HEAD:workflow/agent/agent.py | head -40"
+  ],
+  "steps": 18,
+  "prompt_tokens": 354260,
+  "completion_tokens": 5715,
+  "sha": "457be9259bd2461103c972016f9d93517b75859d",
+  "budget_used": 359975,
+  "budget_limit": 400000
+}

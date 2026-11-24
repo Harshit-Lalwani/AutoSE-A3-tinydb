@@ -1,0 +1,73 @@
+{
+  "summary": "Add an `append` operation to `tinydb.operations` that appends a value to a list field, creates the field as a single-element list if missing, and raises TypeError if the field exists but is not a list.",
+  "issue_type": "feature",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "the tinydb.operations module",
+      "when": "importing append via 'from tinydb.operations import append'",
+      "then": "append is a callable class available in the module's namespace"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-2",
+      "given": "a database with documents [{'tags': ['a']}, {'tags': ['b']}] and a query matching both",
+      "when": "calling db.update(append('tags', 'c'), query)",
+      "then": "both documents have 'tags' equal to ['a', 'c'] and ['b', 'c'] respectively"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-3",
+      "given": "a database with a document {'name': 'doc'} lacking a 'tags' field, and a query matching it",
+      "when": "calling db.update(append('tags', 'new'), query)",
+      "then": "the document becomes {'name': 'doc', 'tags': ['new']}"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-4",
+      "given": "a database with a document {'tags': 'not-a-list'} and a query matching it",
+      "when": "calling db.update(append('tags', 'x'), query)",
+      "then": "TypeError is raised and the document remains unchanged"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-4",
+      "given": "a database with documents [{'tags': ['ok']}, {'tags': 'bad'}] and a query matching both",
+      "when": "calling db.update(append('tags', 'x'), query)",
+      "then": "TypeError is raised on the second document; the first document may or may not be updated (per A-2), but the exception propagates"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-5",
+      "given": "a database with 3 documents matching a query",
+      "when": "calling db.update(append('field', 'val'), query)",
+      "then": "the operation is applied to all 3 matching documents (subject to A-2 error behaviour)"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "NFR-1",
+      "given": "the existing 'add' operation in tinydb.operations",
+      "when": "inspecting the append class signature and usage pattern",
+      "then": "append follows the same protocol: it is a class with __init__(field, value) and __call__(document) that mutates the document dict"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "TypeError is the exception raised for non-list fields (not a TinyDB-specific exception).",
+      "default_used": "TypeError as explicitly suggested in the issue (ST-5)"
+    },
+    {
+      "id": "A-2",
+      "assumption": "db.update processes matching documents sequentially; if an operation raises an exception for a document, the exception propagates immediately, stopping further updates. Documents already updated before the error remain modified.",
+      "default_used": "fail-fast sequential update, typical for simple document databases without transaction support"
+    },
+    {
+      "id": "A-3",
+      "assumption": "The append operation accepts any value type for the appended value (no type restriction beyond what the storage layer already imposes).",
+      "default_used": "no additional restriction; the example uses a string"
+    }
+  ],
+  "blocking_questions": []
+}

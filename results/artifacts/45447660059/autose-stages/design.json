@@ -1,0 +1,15 @@
+{
+  "files": [
+    {
+      "path": "tinydb/table.py",
+      "new": false,
+      "symbols": [
+        "Table.all",
+        "Table.search"
+      ],
+      "new_symbols": [
+        "Table._apply_sort_and_paging"
+      ]
+    }
+  ]
+}

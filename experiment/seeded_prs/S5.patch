@@ -1,0 +1,48 @@
+diff --git a/tests/test_append_operation.py b/tests/test_append_operation.py
+new file mode 100644
+index 0000000..a1b1df0
+--- /dev/null
++++ b/tests/test_append_operation.py
+@@ -0,0 +1,19 @@
++import pytest
++
++from tinydb import TinyDB, Query
++from tinydb.operations import append
++from tinydb.storages import MemoryStorage
++
++
++def test_append_existing_and_missing():
++    db = TinyDB(storage=MemoryStorage)
++    db.insert_multiple([{'p': 'x', 'tags': ['a']}, {'p': 'x'}, {'p': 'y'}])
++    db.update(append('tags', 'u'), Query().p == 'x')
++    assert db.all() == [{'p': 'x', 'tags': ['a', 'u']}, {'p': 'x', 'tags': ['u']}, {'p': 'y'}]
++
++
++def test_append_non_list_raises():
++    db = TinyDB(storage=MemoryStorage)
++    db.insert({'tags': 'no'})
++    with pytest.raises(TypeError):
++        db.update(append('tags', 'u'))
+diff --git a/tinydb/operations.py b/tinydb/operations.py
+index 3f6c6ab..897f284 100644
+--- a/tinydb/operations.py
++++ b/tinydb/operations.py
+@@ -73,3 +73,18 @@ def decrement(field: str) -> Callable[[MutableMapping], None]:
+         doc[field] -= 1
+ 
+     return transform
++
++
++def append(field: str, value: Any) -> Callable[[MutableMapping], None]:
++    """
++    Append ``value`` to the list in a given field (created if missing).
++    """
++    def transform(doc: MutableMapping):
++        if field not in doc:
++            doc[field] = [value]
++        elif isinstance(doc[field], list):
++            doc[field].append(value)
++        else:
++            raise TypeError(f'field {field!r} is not a list')
++
++    return transform

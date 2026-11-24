@@ -1,0 +1,83 @@
+{
+  "verdict": "approve",
+  "category": "none",
+  "requirements": [
+    {
+      "requirement": "Expose an append(field, value) operation in tinydb.operations usable with db.update(..., Query())",
+      "verified_by": "python -c probe importing tinydb.operations.append and calling db.update(append('tags','urgent'), Query().p=='x') -> 'probe ok'",
+      "ok": true
+    },
+    {
+      "requirement": "Append the value to an existing list field",
+      "verified_by": "probe: {'p':'x','tags':['a']} -> {'p':'x','tags':['a','urgent']}",
+      "ok": true
+    },
+    {
+      "requirement": "Create a missing field as a list containing just the value",
+      "verified_by": "probe: {'p':'x'} -> {'p':'x','tags':['urgent']}",
+      "ok": true
+    },
+    {
+      "requirement": "Raise TypeError when the field exists but is not a list",
+      "verified_by": "probe with 'str', None and tuple fields -> TypeError('field 'tags' is not a list'); tests/test_append_operation.py::test_append_non_list_raises passes",
+      "ok": true
+    },
+    {
+      "requirement": "Apply to all matching documents",
+      "verified_by": "probe with two matching docs and one non-matching doc -> only matching docs updated",
+      "ok": true
+    },
+    {
+      "requirement": "No regression / architecture constraints C1-C5 respected",
+      "verified_by": "python -m pytest -q -p no:cacheprovider -> 230 passed; python -m mypy tinydb -> Success; operations.py adds no imports and writes still go through Table._update_table",
+      "ok": true
+    }
+  ],
+  "findings": [
+    {
+      "severity": "minor",
+      "file": "docs/usage.rst",
+      "line": 310,
+      "problem": "The list of built-in update operations in the user documentation was not updated to mention append(key, value).",
+      "evidence": "docs/usage.rst lines 308-315 enumerate delete/increment/decrement/add/subtract/set only; the API reference (docs/api.rst automodule) picks up append automatically."
+    },
+    {
+      "severity": "minor",
+      "file": "docs/changelog.rst",
+      "line": 25,
+      "problem": "No changelog entry for the new append operation.",
+      "evidence": "docs/changelog.rst v4.9.0 section contains no mention of append."
+    }
+  ],
+  "summary": "The append operation correctly implements all requested behaviour (append, create-if-missing, TypeError on non-list), passes the full suite and my own probes, and respects the architecture constraints; only optional documentation updates are missing.",
+  "pr": 10,
+  "issue": null,
+  "round": 0,
+  "variant": "isolated",
+  "models": [
+    "nim:minimaxai/minimax-m3.1-flash"
+  ],
+  "commands": [
+    "ls && cat ARCHITECTURE.md && cat tinydb/operations.py",
+    "git log --oneline -5 && git diff main...HEAD --stat && git status",
+    "grep -n \"C1\\|C2\\|C3\\|C4\\|C5\" ARCHITECTURE.md; grep -rn \"operations\" docs README.rst README.md | head -30; grep -rn \"def update\" tinydb/table.py",
+    "python -m pytest -q -p no:cacheprovider",
+    "sed -n 420,540p tinydb/table.py; sed -n 290,345p docs/usage.rst",
+    "python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.operations import append\nfrom tinydb.storages import MemoryStorage\n\ndb = TinyDB(storage=MemoryStorage)\ndb.insert_multiple([{'p':'x','tags':['a']},{'p':'x'},{'p':'y'}])\ndb.update(append('tags','u'), Query().p=='x')\nprint(db.all())\n\n# non-list\ndb2 = TinyDB(storage=MemoryStorage)\ndb2.insert({'tags':'no'})\ntry:\n    db2.update(append('tags','u'))\nexcept TypeError as e:\n    print('TypeError', e)\nprint(db2.all())\n\n# tuple field\ndb3 = TinyDB(storage=MemoryStorage)\ndb3.insert({'tags':('a',)})\ntry:\n    db3.update(append('tags','u'))\nexcept TypeError as e:\n    print('tuple TypeError', e)\n\n# update_multiple\ndb4 = TinyDB(storage=MemoryStorage)\ndb4.insert({'tags':['a']})\ndb4.update_multiple(append('tags','u'))\nprint(db4.all())\nEOF",
+    "python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.operations import append\nfrom tinydb.storages import MemoryStorage\n\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'tags':['a']})\nprint(db.update_multiple([(append('tags','u'), Query().tags.exists())]))\nprint(db.all())\n\n# field exists but is None\ndb2 = TinyDB(storage=MemoryStorage)\ndb2.insert({'tags':None})\ntry:\n    db2.update(append('tags','u'))\nexcept TypeError as e:\n    print('None ->', e)\n\n# nested field? issue says field name; check dotted path support of other ops\nfrom tinydb.operations import add\ndb3 = TinyDB(storage=MemoryStorage)\ndb3.insert({'a':{'b':1}})\ntry:\n    db3.update(add('a.b', 1))\nexcept Exception as e:\n    print('dotted add ->', type(e).__name__, e)\n\n# empty list\ndb4 = TinyDB(storage=MemoryStorage)\ndb4.insert({'tags':[]})\ndb4.update(append('tags','u'))\nprint(db4.all())\n\n# value itself a list\ndb5 = TinyDB(storage=MemoryStorage)\ndb5.insert({'tags':['a']})\ndb5.update(append('tags',['b','c']))\nprint(db5.all())\n\n# doc_ids path\ndb6 = TinyDB(storage=MemoryStorage)\ndb6.insert_multiple([{'tags':['a']},{'tags':['b']}])\nprint(db6.update(append('tags','u'), doc_ids=[1]))\nprint(db6.all())\nEOF",
+    "git show --stat HEAD; git show HEAD -- tinydb/operations.py; grep -rn \"append\" tinydb/__init__.py docs/api.rst; python -m mypy tinydb 2>&1 | tail -5",
+    "grep -rn \"operations\" tinydb/__init__.py; sed -n 90,110p docs/api.rst; grep -rn \"add\\b\" tests/test_operations.py | head -20",
+    "python - <<'EOF'\n# Probe: does append work when the same transform is reused across docs? (closure state)\nfrom tinydb import TinyDB, Query\nfrom tinydb.operations import append\nfrom tinydb.storages import MemoryStorage\ndb = TinyDB(storage=MemoryStorage)\ndb.insert_multiple([{'tags':['a']},{'tags':['b']}])\nop = append('tags','u')\ndb.update(op, Query().tags.exists())\nprint(db.all())\n# Probe: value appended is same object (aliasing) - acceptable?\ndb2 = TinyDB(storage=MemoryStorage)\nv = {'x':1}\ndb2.insert({})\ndb2.update(append('tags', v))\nprint(db2.all(), db2.all()[0]['tags'][0] is v)\nEOF",
+    "sed -n 820,870p tinydb/table.py; python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.operations import append\nfrom tinydb.storages import MemoryStorage\ndb = TinyDB(storage=MemoryStorage)\ndb.insert_multiple([{'p':'x','tags':['a']},{'p':'x','tags':'bad'}])\ntry:\n    db.update(append('tags','u'), Query().p=='x')\nexcept TypeError as e:\n    print('raised', e)\nprint(db.all())\nEOF",
+    "python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.operations import add\nfrom tinydb.storages import MemoryStorage\ndb = TinyDB(storage=MemoryStorage)\ndb.insert_multiple([{'p':'x','n':1},{'p':'x','n':'bad'}])\ntry:\n    db.update(add('n', 1), Query().p=='x')\nexcept TypeError as e:\n    print('raised', e)\nprint(db.all())\nEOF\ngit log --oneline -3 -- tinydb/table.py",
+    "python -c \"\nimport tinydb.operations as o\nprint([n for n in dir(o) if not n.startswith('_')])\nprint(o.append.__doc__)\n\"; sed -n 1,60p docs/changelog.rst",
+    "cd /tmp && rm -rf basecheck && git -C /srv/autose/ws worktree list 2>/dev/null; git -C /srv/autose/ws show HEAD~1:tinydb/operations.py | grep -c \"def append\"",
+    "python -m pytest -q -p no:cacheprovider tests/test_append_operation.py 2>&1 | tail -3; python -c \"\nfrom tinydb import TinyDB, Query\nfrom tinydb.operations import append\nfrom tinydb.storages import MemoryStorage\ndb=TinyDB(storage=MemoryStorage)\ndb.insert_multiple([{'p':'x','tags':['a']},{'p':'x'},{'p':'y'}])\ndb.update(append('tags','urgent'), Query().p=='x')\nassert db.all()==[{'p':'x','tags':['a','urgent']},{'p':'x','tags':['urgent']},{'p':'y'}]\nprint('probe ok')\n\""
+  ],
+  "steps": 11,
+  "prompt_tokens": 100622,
+  "completion_tokens": 3667,
+  "sha": "49553f0e5f6be4ec2532e107bd12e97352b27ced",
+  "budget_used": 104289,
+  "budget_limit": 400000
+}

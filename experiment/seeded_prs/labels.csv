@@ -1,0 +1,6 @@
+seeded_pr,request,ground_truth,defect_kind,planted_defect,post_hoc_note
+S1,I3 between(),defective,code,upper bound exclusive (low <= v < high); issue asks for both ends included; PR tests avoid the boundaries,
+S2,I2 string doc IDs,correct,,,"unplanted defect found by the isolated reviewer (run 45447667930) and verified by hand: non-numeric string IDs such as 'abc' raise ValueError in update()/remove(), while main and get() skip them; the issue says unknown IDs should be skipped. Counted as defective in the analysis."
+S3,I1 failed update atomicity,defective,approach,only clears the query cache on failure; MemoryStorage data is still half-modified (the main complaint),
+S4,I4 append operation,defective,code,append is correct but delete() is silently changed to ignore missing fields (unrelated behaviour change),
+S5,I4 append operation,correct,,,

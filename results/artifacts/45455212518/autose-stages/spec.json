@@ -1,0 +1,73 @@
+{
+  "summary": "Make TinyDB update/remove/insert_multiple atomic on all storages (including MemoryStorage) and invalidate the query cache on write failures so searches always reflect stored data.",
+  "issue_type": "bug",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.update(delete('tmp')) is called",
+      "then": "KeyError is raised and db.all() returns [{'name': 'a', 'tmp': 1}, {'name': 'b'}] (unchanged)"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with JSONStorage (temp file) containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.update(delete('tmp')) is called",
+      "then": "KeyError is raised, the file content is unchanged, and db.all() returns [{'name': 'a', 'tmp': 1}, {'name': 'b'}]"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a'}, {'name': 'b'}]",
+      "when": "db.insert_multiple([{'name': 'c'}, {'invalid': 'doc'}]) raises an exception (e.g. validation error in user code)",
+      "then": "the exception propagates and db.all() returns [{'name': 'a'}, {'name': 'b'}] (unchanged)"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-2",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}] and a prior search db.search(Query().tmp.exists()) that returned [{'name': 'a', 'tmp': 1}]",
+      "when": "db.update(delete('tmp')) raises KeyError",
+      "then": "a subsequent db.search(Query().tmp.exists()) returns [{'name': 'a', 'tmp': 1}] (cache invalidated, matches stored data)"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-2",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a'}]",
+      "when": "db.remove(Query().name == 'a') succeeds",
+      "then": "db.all() returns [] and a subsequent db.search(Query().name == 'a') returns [] (cache invalidated on successful write)"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-3",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.update(delete('tmp')) is called",
+      "then": "the raised exception is KeyError with message \"'tmp'\""
+    },
+    {
+      "id": "AC-7",
+      "requirement": "NFR-1",
+      "given": "the fixed TinyDB code",
+      "when": "importing TinyDB, MemoryStorage, JSONStorage, CachingMiddleware and calling their public methods",
+      "then": "no AttributeError, TypeError or signature change occurs; all existing public classes and methods are present"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "Atomicity applies to all exceptions inheriting from Exception raised during the write operation; KeyboardInterrupt and MemoryError are not caught.",
+      "default_used": "Catch Exception in the write path."
+    },
+    {
+      "id": "A-2",
+      "assumption": "Only the core TinyDB query cache (cleared by clear_cache()) must be invalidated on failed writes; CachingMiddleware and other middlewares manage their own caches.",
+      "default_used": "Fix core cache invalidation only."
+    },
+    {
+      "id": "A-3",
+      "assumption": "Atomicity is achieved by preparing the new data in memory and calling storage.write once on success; the Storage interface does not change.",
+      "default_used": "In-memory copy \u2192 modify \u2192 single write on success."
+    }
+  ],
+  "blocking_questions": []
+}

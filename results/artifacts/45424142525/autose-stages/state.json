@@ -1,0 +1,169 @@
+{
+  "issue": 4,
+  "variant": "default",
+  "branch": "autose/issue-4",
+  "history": [
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 1,
+      "ok": false,
+      "summary": "2 blocking question(s) need a maintainer's answer",
+      "seconds": 146.7,
+      "steps": 1,
+      "prompt_tokens": 7305,
+      "completion_tokens": 3856,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 2,
+      "ok": true,
+      "summary": "8 testable ACs",
+      "seconds": 109.0,
+      "steps": 1,
+      "prompt_tokens": 7578,
+      "completion_tokens": 4115,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 1,
+      "ok": true,
+      "summary": "files: tinydb/operations.py",
+      "seconds": 242.8,
+      "steps": 26,
+      "prompt_tokens": 219769,
+      "completion_tokens": 8045,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "implement",
+      "attempt": 1,
+      "ok": true,
+      "summary": "build ok",
+      "seconds": 138.2,
+      "steps": 14,
+      "prompt_tokens": 76795,
+      "completion_tokens": 4977,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 12,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "test",
+      "attempt": 1,
+      "ok": false,
+      "summary": "TEST-SIDE AC-8: no test named test_ac8_*; full suite failed: 1 failing test(s)",
+      "seconds": 176.1,
+      "steps": 31,
+      "prompt_tokens": 466435,
+      "completion_tokens": 6215,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 29,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "implement",
+      "attempt": 2,
+      "ok": true,
+      "summary": "build ok",
+      "seconds": 386.7,
+      "steps": 9,
+      "prompt_tokens": 63362,
+      "completion_tokens": 16437,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 8,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "test",
+      "attempt": 2,
+      "ok": false,
+      "summary": "full suite failed: 1 failing test(s)",
+      "seconds": 229.0,
+      "steps": 22,
+      "prompt_tokens": 225127,
+      "completion_tokens": 8388,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 19,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 1,
+      "ok": false,
+      "summary": "no ```json block with a non-empty 'files' list",
+      "seconds": 116.9,
+      "steps": 26,
+      "prompt_tokens": 268140,
+      "completion_tokens": 3591,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 2,
+      "ok": true,
+      "summary": "files: tinydb/operations.py, tinydb/table.py",
+      "seconds": 207.8,
+      "steps": 26,
+      "prompt_tokens": 285559,
+      "completion_tokens": 7153,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "implement",
+      "attempt": 1,
+      "ok": false,
+      "summary": "token budget exhausted: used 2,462,673 of 2,500,000, next call could need up to 52,275",
+      "seconds": null
+    }
+  ],
+  "tokens": {
+    "prompt": 1620070,
+    "completion": 62777
+  },
+  "review_round": 0,
+  "outcome": "stopped: token budget exhausted: used 2,462,673 of 2,500,000, next call could need up to 52,275",
+  "budget": {
+    "limit": 2500000,
+    "used": 2462673
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "summary": "Add an `append` operation to `tinydb.operations` that appends a value to a list field (creating it if missing, raising TypeError if not a list), supporting dot-notation paths, usable via `db.update(append('field', value), query)`.",
+  "issue_type": "feature",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "the tinydb.operations module",
+      "when": "importing append via `from tinydb.operations import append`",
+      "then": "append is a class and can be instantiated as `append('tags', 'urgent')`"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-2",
+      "given": "a document `{'meta': {'tags': ['a']}}` in the database",
+      "when": "calling `db.update(append('meta.tags', 'b'), Query().id == 1)`",
+      "then": "the document becomes `{'meta': {'tags': ['a', 'b']}}`"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-2",
+      "given": "a document `{'tags': ['x']}` in the database",
+      "when": "calling `db.update(append('tags', 'y'), Query().id == 1)`",
+      "then": "the document becomes `{'tags': ['x', 'y']}`"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-3",
+      "given": "a document `{'other': 1}` without a 'tags' field",
+      "when": "calling `db.update(append('tags', 'first'), Query().id == 1)`",
+      "then": "the document becomes `{'other': 1, 'tags': ['first']}`"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-4",
+      "given": "a document `{'tags': ['existing']}`",
+      "when": "calling `db.update(append('tags', 'new'), Query().id == 1)`",
+      "then": "the document becomes `{'tags': ['existing', 'new']}`"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-5",
+      "given": "a document `{'tags': 'not-a-list'}`",
+      "when": "calling `db.update(append('tags', 'value'), Query().id == 1)`",
+      "then": "TypeError is raised and the document is unchanged"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "FR-6",
+      "given": "three documents with `project == 'x'` having tags `['a']`, `['b']`, and no tags field",
+      "when": "calling `db.update(append('tags', 'z'), Query().project == 'x')`",
+      "then": "all three documents have 'z' appended (third gets `['z']`)"
+    },
+    {
+      "id": "AC-8",
+      "requirement": "NFR-1",
+      "given": "a document `{'tags': ['a']}` and a query matching it",
+      "when": "calling `db.update(append('tags', 'b'), query)`",
+      "then": "the document is replaced atomically with `{'tags': ['a', 'b']}` (no intermediate state visible to concurrent readers)"
+    },
+    {
+      "id": "AC-9",
+      "requirement": "NFR-2",
+      "given": "the append operation class",
+      "when": "inspecting its signature and behaviour",
+      "then": "it follows the same pattern as `add`, `increment`, `set` (callable returning new field value, usable in `db.update`)"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "append returns a new list (functional update), not mutating in-place. Matches existing operations (add, increment) which return new values.",
+      "default_used": "functional update (new list)"
+    },
+    {
+      "id": "A-2",
+      "assumption": "Dot notation (e.g., 'meta.tags') is supported for nested fields, consistent with set and Query.",
+      "default_used": "dot notation supported"
+    }
+  ],
+  "blocking_questions": []
+}

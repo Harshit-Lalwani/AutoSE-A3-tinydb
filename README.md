@@ -7,7 +7,7 @@ CS6.403 AutoSE, Monsoon 2026, Assignment 3. Roll number 2023111028.
 - **Fork of:** [msiemens/tinydb](https://github.com/msiemens/tinydb), pinned at commit
   `edff96aeb2616402e9489d46e90a592c05565621`. `main` starts at that commit; upstream `master` is untouched.
   `main` is protected (changes only through pull requests).
-- **Report:** [`report.pdf`](report.pdf) · **Demo video:** see [Demo](#demo)
+- **Report:** [`report.pdf`](report.pdf) (LaTeX source [`report/report.tex`](report/report.tex), build with `report/build.sh`) · **Demo video:** [Google Drive](https://drive.google.com/drive/folders/1cJipdbbZFraef3eEKzbU5hrets5mTd0v?usp=sharing)
 - **Architecture:** [`architecture/views/`](architecture/views) (component view, sequence view, stage map) and
   [`architecture/decisions/`](architecture/decisions) (ADRs, superseded ones kept).
   [`ARCHITECTURE.md`](ARCHITECTURE.md) is the tinydb architecture from A2, read by the design stage.
@@ -28,8 +28,8 @@ Why: [ADR-011](architecture/decisions/ADR-011.md) (supersedes ADR-006).
 
 **Spending limit.** All model use is on free tiers (NIM free tier; OpenRouter key without credits), so money
 spent is zero. As the hard limit we use tokens ([ADR-012](architecture/decisions/ADR-012.md)): 2.5M tokens per
-pipeline run and 400k per review, enforced in code before every model call. Token totals are in
-`results/results.csv`.
+pipeline run and 400k per review, enforced in code before every model call. **Total used over all GitHub runs: 37.8M tokens** (32.9M builders,
+4.9M reviewer; per run in `results/results.csv`, report §4).
 
 ## How to trigger the workflow
 

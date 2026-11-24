@@ -1,0 +1,19 @@
+{
+  "verdict": "incomplete",
+  "category": "none",
+  "findings": [],
+  "requirements": [],
+  "summary": "Review stopped before a verdict: token budget exhausted: used 373,004 of 400,000, next call could need up to 56,088.",
+  "pr": 24,
+  "issue": 2,
+  "round": 1,
+  "variant": "isolated",
+  "models": [],
+  "commands": [],
+  "steps": 0,
+  "prompt_tokens": 0,
+  "completion_tokens": 0,
+  "sha": "e9a5fcb254b9cfd26797e47a1a1f164455663a02",
+  "budget_used": 373004,
+  "budget_limit": 400000
+}
