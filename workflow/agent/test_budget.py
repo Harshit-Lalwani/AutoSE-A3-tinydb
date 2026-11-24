@@ -28,6 +28,16 @@ assert agent.BUDGET["used"] == 1000  # refused call was never sent
 agent.set_budget(10_000, used=5_000)  # 2 x (prompt + 2600) > 5000 left: agent must answer now
 assert agent.budget_low([{"role": "user", "content": "hi"}], 2600)
 assert not agent.budget_low([{"role": "user", "content": "hi"}], 1000)
+msgs = [{"role": "user", "content": "task"}]
+for i in range(6):
+    msgs.append({"role": "assistant", "content": "", "tool_calls": [{"id": f"c{i}", "type": "function", "function": {
+        "name": "write_file", "arguments": agent.json.dumps({"path": "a.py", "content": "x" * 5000})}}]})
+    msgs.append({"role": "tool", "tool_call_id": f"c{i}", "content": "y" * 5000})
+agent.compact(msgs)
+assert len(msgs[2]["content"]) < 400 and len(msgs[1]["tool_calls"][0]["function"]["arguments"]) < 400  # old: shortened
+assert agent.json.loads(msgs[1]["tool_calls"][0]["function"]["arguments"])["path"] == "a.py"  # still valid JSON
+assert len(msgs[-1]["content"]) == 5000 and len(msgs[4]["content"]) < 400  # tools 0-1 shortened, 2-5 kept
+assert len(msgs[6]["content"]) == 5000
 print("budget ok")
 
 

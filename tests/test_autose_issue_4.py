@@ -10,13 +10,15 @@ from tinydb.operations import append
 
 
 def test_ac1_import_append():
-    """AC-1: Importing append from tinydb.operations succeeds and is callable."""
+    """AC-1: Importing append from tinydb.operations succeeds and is
+    callable."""
     from tinydb.operations import append as append_op
     assert callable(append_op)
 
 
 def test_ac2_append_returns_operation_object():
-    """AC-2: append('tags', 'urgent') returns an operation object usable with db.update."""
+    """AC-2: append('tags', 'urgent') returns an operation object usable
+    with db.update."""
     db = TinyDB(storage=MemoryStorage)
     op = append('tags', 'urgent')
     assert callable(op)
@@ -46,7 +48,8 @@ def test_ac4_append_to_existing_list():
 
 
 def test_ac5_append_to_non_list_raises_typeerror():
-    """AC-5: Append to non-list field raises TypeError and leaves document unchanged."""
+    """AC-5: Append to non-list field raises TypeError and leaves document
+    unchanged."""
     db = TinyDB(storage=MemoryStorage)
     db.insert({'project': 'x', 'tags': 'not-a-list'})
     try:
@@ -74,24 +77,25 @@ def test_ac6_append_updates_multiple_documents():
 
 
 def test_ac7_fail_fast_on_typeerror():
-    """AC-7: Fail-fast semantics - TypeError on second doc, first updated, third not processed."""
+    """AC-7: Fail-fast semantics - TypeError on second doc, first updated,
+    third not processed."""
     db = TinyDB(storage=MemoryStorage)
     # Insert three documents matching the query
     db.insert({'project': 'x', 'id': 1})  # No tags field - should get ['x']
     db.insert({'project': 'x', 'id': 2, 'tags': 'not-a-list'})  # Non-list - should raise TypeError
     db.insert({'project': 'x', 'id': 3, 'tags': ['existing']})  # Should NOT be processed
-    
+
     try:
         db.update(append('tags', 'x'), Query().project == 'x')
         assert False, "Expected TypeError"
     except TypeError as e:
         assert "not a list" in str(e)
-    
+
     # Check state after failed update
     doc1 = db.get(Query().id == 1)
     doc2 = db.get(Query().id == 2)
     doc3 = db.get(Query().id == 3)
-    
+
     # First document should be updated
     assert doc1['tags'] == ['x']
     # Second document should be unchanged (error occurred on it)
@@ -106,13 +110,13 @@ def test_ac8_no_import_errors():
     # But we can also test a fresh import scenario
     import importlib
     import sys
-    
+
     # Simulate fresh import by reloading
     if 'tinydb.operations' in sys.modules:
         importlib.reload(sys.modules['tinydb.operations'])
     from tinydb.operations import append
     assert callable(append)
-    
+
     # Verify it works end-to-end
     db = TinyDB(storage=MemoryStorage)
     db.insert({'data': 1})
@@ -124,29 +128,30 @@ def test_ac8_no_import_errors():
 # Additional edge case tests
 
 def test_append_with_various_value_types():
-    """Append works with any JSON-serializable value (str, int, dict, list, etc.)."""
+    """Append works with any JSON-serializable value (str, int, dict, list,
+    etc.)."""
     db = TinyDB(storage=MemoryStorage)
-    
+
     # String
     db.insert({'id': 1})
     db.update(append('vals', 'string'), Query().id == 1)
     assert db.get(Query().id == 1)['vals'] == ['string']
-    
+
     # Integer
     db.insert({'id': 2})
     db.update(append('vals', 42), Query().id == 2)
     assert db.get(Query().id == 2)['vals'] == [42]
-    
+
     # Dict
     db.insert({'id': 3})
     db.update(append('vals', {'key': 'value'}), Query().id == 3)
     assert db.get(Query().id == 3)['vals'] == [{'key': 'value'}]
-    
+
     # List
     db.insert({'id': 4})
     db.update(append('vals', [1, 2, 3]), Query().id == 4)
     assert db.get(Query().id == 4)['vals'] == [[1, 2, 3]]
-    
+
     # None
     db.insert({'id': 5})
     db.update(append('vals', None), Query().id == 5)
@@ -180,7 +185,8 @@ def test_append_field_name_with_special_chars():
 
 
 def test_append_field_name_with_special_chars_existing_list():
-    """Append works with field names containing special chars when field is already a list."""
+    """Append works with field names containing special chars when field is
+    already a list."""
     db = TinyDB(storage=MemoryStorage)
     db.insert({'my-field': ['existing']})
     db.update(append('my-field', 'appended'))

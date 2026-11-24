@@ -89,7 +89,7 @@ def append(field: str, value: Any) -> Callable[[MutableMapping], None]:
         if field not in doc:
             doc[field] = [value]
         elif isinstance(doc[field], list):
-            doc[field].append(value)
+            doc[field] = doc[field] + [value]
         else:
             raise TypeError(f"Field '{field}' is not a list")
 
