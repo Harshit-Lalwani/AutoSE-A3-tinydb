@@ -141,6 +141,29 @@ class AgentResult:
     stopped_reason: str = "finished"
 
 
+KEEP_RECENT = 4  # tool exchanges an agent sees in full; older ones are shortened (ADR-014)
+ELIDED = " ...[elided to save tokens; re-run the command if you need this again]"
+
+
+def compact(messages, keep=KEEP_RECENT):
+    """Shorten tool outputs and tool-call arguments older than the last `keep` tool exchanges."""
+    asst = [m for m in messages if m["role"] == "assistant" and m.get("tool_calls")]
+    recent = {c["id"] for m in asst[-keep:] for c in m["tool_calls"]}
+    for m in asst[:-keep]:
+        for c in m["tool_calls"]:
+            f = c["function"]
+            if len(f["arguments"]) > 400:
+                try:
+                    a = json.loads(f["arguments"])
+                except json.JSONDecodeError:
+                    a = {}
+                f["arguments"] = json.dumps({k: v[:200] + ELIDED if isinstance(v, str) and len(v) > 200 else v
+                                             for k, v in a.items()})
+    for m in messages:
+        if m["role"] == "tool" and m["tool_call_id"] not in recent and len(m["content"]) > 400:
+            m["content"] = m["content"][:300] + ELIDED
+
+
 def run_agent(role: str, model_role: str, system: str, user: str, tools: list[str], workdir: Path,
               max_steps: int, log_path: Path, max_total_tokens: int = 1_500_000,
               max_tokens: int = 8000) -> AgentResult:
@@ -159,6 +182,7 @@ def run_agent(role: str, model_role: str, system: str, user: str, tools: list[st
 
     record({"event": "start", "system": system, "user": user, "tools": tools})
     while True:
+        compact(messages)
         over_budget = (res.steps >= max_steps or (res.prompt_tokens + res.completion_tokens) > max_total_tokens
                        or budget_low(messages, max_tokens))  # answer while the run budget can still pay for it
         if over_budget and tool_specs:

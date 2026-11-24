@@ -19,3 +19,4 @@ marked *Superseded by ADR-0xx* and a new ADR explains what we learned.
 | [ADR-011](ADR-011.md) | D6 Models (after measuring reasoning cost) | Accepted |
 | [ADR-012](ADR-012.md) | D9 Cost: hard token budget as spending limit | Accepted |
 | [ADR-013](ADR-013.md) | D7 Checks (design check after the first GitHub runs) | Accepted |
+| [ADR-014](ADR-014.md) | D4/D9 Context compaction (result of E2) | Accepted |
