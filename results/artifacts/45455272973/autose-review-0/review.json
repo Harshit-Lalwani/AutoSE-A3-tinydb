@@ -1,0 +1,129 @@
+{
+  "verdict": "approve",
+  "category": "none",
+  "requirements": [
+    {
+      "requirement": "Add an `append` operation to `tinydb.operations` next to `add`, `increment`, etc.",
+      "verified_by": "python -c 'from tinydb.operations import append; print(callable(append))' -> True; `python -m pytest -q -p no:cacheprovider` -> 243 passed",
+      "ok": true
+    },
+    {
+      "requirement": "Usable as `db.update(append('tags', 'urgent'), Query().project == 'x')`",
+      "verified_by": "custom probe R2: `db.update(append('tags', 'urgent'), Query().project == 'x')` -> [{'project': 'x', 'tags': ['a', 'urgent']}, ...]",
+      "ok": true
+    },
+    {
+      "requirement": "If a matching document doesn't have the field, create it as a list with just that value",
+      "verified_by": "custom probe R3: doc without 'tags' became {'project': 'x', 'tags': ['urgent']}; PR test test_ac3_append_creates_new_list passes",
+      "ok": true
+    },
+    {
+      "requirement": "If the field exists but isn't a list, raise TypeError",
+      "verified_by": "custom probe R4 -> 'TypeError: Field 'tags' is not a list'; extra probe: tuple/None/bool/dict/int fields all raise TypeError; PR test test_ac4 passes",
+      "ok": true
+    },
+    {
+      "requirement": "Operation applies to all matching documents",
+      "verified_by": "custom probe R5: both matching docs got the value appended; PR test test_ac6 passes",
+      "ok": true
+    },
+    {
+      "requirement": "Follows the same factory/transform protocol as `add` (mutates doc in place)",
+      "verified_by": "custom probe: `append_transform({'field': [1,2]})` -> {'field': [1,2,'value']}; PR test test_ac7 passes",
+      "ok": true
+    },
+    {
+      "requirement": "Architecture constraints C1-C5 respected",
+      "verified_by": "grep of tinydb/operations.py imports -> only collections.abc/typing (C5 ok); no storage/table/middleware changes (C1-C4 n/a); no new runtime dependencies in pyproject.toml",
+      "ok": true
+    },
+    {
+      "requirement": "Full test suite passes",
+      "verified_by": "python -m pytest -q -p no:cacheprovider -> 243 passed in 0.77s",
+      "ok": true
+    }
+  ],
+  "findings": [
+    {
+      "severity": "minor",
+      "file": "tinydb/operations.py",
+      "line": 104,
+      "problem": "No newline at end of file (pycodestyle W292); same for tests/test_autose_issue_4.py",
+      "evidence": "python -m pycodestyle tinydb/operations.py tests/test_autose_issue_4.py -> 'tinydb/operations.py:104:2: W292 no newline at end of file'; pycodestyle is not part of the default pytest run and main already has E501 violations",
+      "ok": true
+    },
+    {
+      "severity": "minor",
+      "file": "docs/usage.rst",
+      "line": 0,
+      "problem": "The 'Update operations' section of the docs enumerates the available operations but `append` was not added there",
+      "evidence": "grep -rn 'operations' docs/usage.rst shows the update-operations list; no mention of `append` in docs/",
+      "ok": true
+    },
+    {
+      "severity": "minor",
+      "file": "tinydb/operations.py",
+      "line": 96,
+      "problem": "The PR also adds an `__all__` tuple, which is unrelated to the issue; it changes what `from tinydb.operations import *` exports (previously also `Any`, `Callable`, `MutableMapping`, `Union`)",
+      "evidence": "python -c 'import tinydb.operations as o; print(o.__all__)' -> ('delete','add','subtract','set','increment','decrement','append'); no star-imports exist in the repo or docs, and `__all__` matches the convention in tinydb/__init__.py, so this is harmless",
+      "ok": true
+    }
+  ],
+  "summary": "The `append` operation is implemented correctly as a factory returning an in-place transform, satisfies every requirement in the issue (missing field -> [value], non-list -> TypeError, applied to all matching docs), passes the full suite and mypy, and respects the architecture constraints; only minor style/docs nits remain.",
+  "pr": 15,
+  "issue": 4,
+  "round": 0,
+  "variant": "isolated",
+  "models": [
+    "nim:minimaxai/minimax-m3.1-flash"
+  ],
+  "commands": [
+    "ls -la && cat ARCHITECTURE.md",
+    "cat tinydb/operations.py && echo ---- && cat tinydb/__init__.py && echo ---- && git log --oneline -5 && git diff main...HEAD --stat",
+    "cd /srv/autose/ws 2>/dev/null || cd .; git branch -a; git log --oneline -3; git show --stat HEAD",
+    "python -m pytest -q -p no:cacheprovider 2>&1 | tail -20",
+    "cd /srv/autose/ws 2>/dev/null || cd .; sed -n '1,80p' tinydb/table.py; echo ====; grep -n \"def update\" -A 60 tinydb/table.py",
+    "cd /srv/autose/ws 2>/dev/null || cd .; grep -rn \"operations\" docs/ README.rst | head -30; ls docs",
+    "cd /srv/autose/ws 2>/dev/null || cd .; grep -n \"def update\" -A 90 tinydb/table.py | sed -n '1,140p'",
+    "cd /srv/autose/ws 2>/dev/null || cd .; grep -n \"_update_table\" -A 40 tinydb/table.py | sed -n '1,80p'",
+    "cd /srv/autose/ws 2>/dev/null || cd .; sed -n '427,560p' tinydb/table.py",
+    "cd /srv/autose/ws 2>/dev/null || cd .; grep -n \"def _update_table\" -A 45 tinydb/table.py",
+    "cd /srv/autose/ws 2>/dev/null || cd .; cat ARCHITECTURE.md",
+    "cd /srv/autose/ws 2>/dev/null || cd .; cat tinydb/operations.py",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'tags': ['a']})\ndb.insert({'name': 'x'})\ndb.insert({'tags': 'str'})\ndb.insert({'tags': ('t',)})\ndb.insert({'tags': 5})\n\n# 1. mixed docs: does the exception propagate and is partial state written?\ntry:\n    db.update(append('tags', 'z'), Query().tags.exists())\nexcept TypeError as e:\n    print(\"TypeError raised:\", e)\n\nprint(\"docs after:\", db.all())\nEOF",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'tags': ['a']})\n# update_multiple\ndb.update_multiple([(append('tags', 'x'), Query().tags.exists())])\nprint(db.all())\n\n# star import\nns = {}\nexec(\"from tinydb.operations import *\", ns)\nprint('append' in ns, sorted(k for k in ns if not k.startswith('_')))\n\n# nested field path\ndb2 = TinyDB(storage=MemoryStorage)\ndb2.insert({'meta': {'tags': ['a']}})\ntry:\n    db2.update(append('meta.tags', 'x'), Query().meta.tags.exists())\nexcept Exception as e:\n    print(type(e).__name__, e)\nprint(db2.all())\nEOF",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python - <<'EOF'\nimport tempfile, os, json\nfrom tinydb import TinyDB, Query\nfrom tinydb.operations import append\n\nd = tempfile.mkdtemp()\np = os.path.join(d, 'db.json')\ndb = TinyDB(p)\ndb.insert({'tags': ['a']})\ndb.insert({'tags': 'bad'})\ntry:\n    db.update(append('tags', 'z'), Query().tags.exists())\nexcept TypeError as e:\n    print(\"TypeError:\", e)\nprint(\"file contents:\", open(p).read())\ndb.close()\nEOF",
+    "cd /srv/autose/ws 2>/dev/null || cd .; grep -rn \"operations\" docs/*.rst | head -20; echo ====; grep -rn \"add\\b\" docs/usage.rst | head -20",
+    "cd /srv/autose/ws 2>/dev/null || cd .; sed -n '295,345p' docs/usage.rst; echo ====CHANGELOG; sed -n '1,40p' docs/changelog.rst",
+    "cd /srv/autose/ws 2>/dev/null || cd .; git diff main...HEAD --stat; git diff main...HEAD -- tinydb/operations.py | head -60; echo ====; ls tests/",
+    "cd /srv/autose/ws 2>/dev/null || cd .; git diff origin/main...HEAD -- tinydb/operations.py; echo \"=== main version ===\"; git show origin/main:tinydb/operations.py | tail -20",
+    "cd /srv/autose/ws 2>/dev/null || cd .; cat tests/test_operations.py; echo ====; cat tests/conftest.py",
+    "cd /srv/autose/ws 2>/dev/null || cd .; sed -n '1,30p' tinydb/operations.py; echo \"=== mypy/flake config ===\"; cat pyproject.toml | head -60",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python -m mypy tinydb/operations.py 2>&1 | tail -5; python -m flake8 tinydb/operations.py tests/test_autose_issue_4.py 2>&1 | tail -10",
+    "cd /srv/autose/ws 2>/dev/null || cd .; sed -n '60,140p' pyproject.toml; echo \"=== pytest ini ===\"; grep -n \"pytest\" -A 20 pyproject.toml | grep -n \"addopts\\|pycodestyle\\|mypy\" ",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python -m pytest -q -p no:cacheprovider --collect-only 2>&1 | tail -5; echo \"=== run with pycodestyle plugin ===\"; python -m pytest -q -p no:cacheprovider --pycodestyle 2>&1 | tail -20",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python -m pycodestyle tinydb/operations.py tests/test_autose_issue_4.py; echo \"exit=$?\"; echo \"=== main baseline ===\"; git stash list; git show origin/main:tinydb/operations.py > /tmp/main_ops.py; python -m pycodestyle /tmp/main_ops.py; echo \"exit=$?\"",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python -m pytest -q -p no:cacheprovider 2>&1 | grep -E \"passed|failed\"",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'project': 'x', 'tags': ['a']})\ndb.insert({'project': 'y'})\n\n# Issue's exact usage\ndb.update(append('tags', 'urgent'), Query().project == 'x')\nprint(\"issue usage:\", db.all())\n\n# update_multiple\ndb.update_multiple(append('tags', 'm'), Query().project == 'y')\nprint(\"update_multiple:\", db.all())\n\n# no condition\ndb.update(append('tags', 'all'))\nprint(\"no cond:\", db.all())\n\n# list subclass\nclass MyList(list): pass\nd = {'tags': MyList([1])}\nappend('tags', 2)(d)\nprint(\"subclass:\", d, type(d['tags']))\n\n# non-dict MutableMapping\nfrom collections import OrderedDict\nod = OrderedDict()\nappend('tags', 1)(od)\nprint(\"ordereddict:\", od)\nEOF",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python - <<'EOF'\n# check __all__ doesn't hide anything previously importable via *\nimport tinydb.operations as ops\nprint(sorted(n for n in dir(ops) if not n.startswith('_')))\nprint(\"__all__:\", getattr(ops, '__all__', None))\nEOF\necho \"=== check other modules for __all__ convention ===\"\ngrep -rn \"__all__\" tinydb/ | head",
+    "cd /srv/autose/ws 2>/dev/null || cd .; grep -n \"def update_multiple\" -A 30 tinydb/table.py",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'project': 'x', 'tags': ['a']})\ndb.insert({'project': 'y'})\n\n# update_multiple with field callable\ndb.update_multiple(append('tags', 'm'), Query().project == 'y')\nprint(\"update_multiple:\", db.all())\n\n# no condition\ndb.update(append('tags', 'all'))\nprint(\"no cond:\", db.all())\n\n# list subclass\nclass MyList(list): pass\nd = {'tags': MyList([1])}\nappend('tags', 2)(d)\nprint(\"subclass:\", d, type(d['tags']).__name__)\n\n# non-dict MutableMapping\nfrom collections import OrderedDict\nod = OrderedDict()\nappend('tags', 1)(od)\nprint(\"ordereddict:\", od)\n\n# value is a mutable list itself (aliasing)\nv = ['x']\nd2 = {}\nappend('tags', v)(d2)\nv.append('mutated')\nprint(\"aliasing:\", d2)\nEOF",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'project': 'x', 'tags': ['a']})\ndb.insert({'project': 'y'})\n\ndb.update_multiple([(append('tags', 'm'), Query().project == 'y')])\nprint(\"update_multiple:\", db.all())\n\ndb.update(append('tags', 'all'))\nprint(\"no cond:\", db.all())\n\nclass MyList(list): pass\nd = {'tags': MyList([1])}\nappend('tags', 2)(d)\nprint(\"subclass:\", d, type(d['tags']).__name__)\n\nfrom collections import OrderedDict\nod = OrderedDict()\nappend('tags', 1)(od)\nprint(\"ordereddict:\", od)\n\nv = ['x']\nd2 = {}\nappend('tags', v)(d2)\nv.append('mutated')\nprint(\"aliasing:\", d2)\nEOF",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python - <<'EOF'\n# Probe: does append work when the field value is a list but the doc is frozen?\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\nimport tinydb.utils as u\n\n# frozen doc\ntry:\n    append('tags', 1)(u.freeze({'tags': []}))\nexcept Exception as e:\n    print(\"frozen:\", type(e).__name__, e)\n\n# field present with value None\nd = {'tags': None}\ntry:\n    append('tags', 1)(d)\nexcept Exception as e:\n    print(\"None field:\", type(e).__name__, e)\n\n# field present with bool\nd = {'tags': True}\ntry:\n    append('tags', 1)(d)\nexcept Exception as e:\n    print(\"bool field:\", type(e).__name__, e)\n\n# field present with dict\nd = {'tags': {}}\ntry:\n    append('tags', 1)(d)\nexcept Exception as e:\n    print(\"dict field:\", type(e).__name__, e)\nEOF",
+    "cd /srv/autose/ws 2>/dev/null || cd .; grep -rn \"from tinydb.operations import \\*\\|from .operations import \\*\" . --include=*.py --include=*.rst 2>/dev/null; echo \"no star imports found (exit $?)\"; python -c \"\nexec('from tinydb.operations import *')\nprint(sorted(k for k in dir() if not k.startswith('_')))\n\"",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python - <<'EOF'\n# Verify the PR's own tests would fail without the fix (i.e., they actually test the feature)\nimport subprocess, sys, os, shutil, tempfile\n# temporarily remove append from operations.py in a copy and run the new test file\nsrc = open('tinydb/operations.py').read()\npatched = src.replace(\"def append(field: str, value: Any)\", \"def _disabled_append(field: str, value: Any)\")\nassert patched != src\nopen('/tmp/ops_backup.py','w').write(src)\nopen('tinydb/operations.py','w').write(patched)\ntry:\n    r = subprocess.run([sys.executable, '-m', 'pytest', '-q', '-p', 'no:cacheprovider', 'tests/test_autose_issue_4.py'], capture_output=True, text=True)\n    print(r.stdout[-1500:])\nfinally:\n    open('tinydb/operations.py','w').write(src)\nEOF",
+    "cd /srv/autose/ws 2>/dev/null || cd .; git status --porcelain; git diff --stat; echo \"=== full suite ===\"; python -m pytest -q -p no:cacheprovider 2>&1 | grep -E \"passed|failed\"",
+    "cd /srv/autose/ws 2>/dev/null || cd .; cat tests/conftest.py; echo \"=== pytest.ini ===\"; cat pytest.ini 2>/dev/null",
+    "cd /srv/autose/ws 2>/dev/null || cd .; grep -n \"C1\\|C2\\|C3\\|C4\\|C5\" ARCHITECTURE.md",
+    "cd /srv/autose/ws 2>/dev/null || cd .; sed -n '1,200p' ARCHITECTURE.md | tail -120",
+    "cd /srv/autose/ws 2>/dev/null || cd .; grep -n \"^from\\|^import\" tinydb/operations.py; echo \"=== C5 check: no table/database imports ===\"; grep -n \"table\\|database\" tinydb/operations.py || echo \"none\"; echo \"=== deps ===\"; grep -n \"dependencies\" -A 3 pyproject.toml",
+    "cd /srv/autose/ws 2>/dev/null || cd .; python - <<'EOF'\n# Final consolidated probe of every issue requirement\nfrom tinydb import TinyDB, Query\nfrom tinydb.storages import MemoryStorage\nfrom tinydb.operations import append\n\ndb = TinyDB(storage=MemoryStorage)\ndb.insert({'project': 'x', 'tags': ['a']})\ndb.insert({'project': 'x'})          # missing field\ndb.insert({'project': 'y', 'tags': 'oops'})  # non-list\n\n# R1: importable from tinydb.operations\nprint(\"R1 importable:\", callable(append))\n\n# R2: exact issue usage\ndb.update(append('tags', 'urgent'), Query().project == 'x')\nprint(\"R2 issue usage:\", db.all())\n\n# R3: missing field created as list\nprint(\"R3 missing->list:\", db.get(Query().project == 'x' and Query().tags.exists()))\n\n# R4: non-list -> TypeError\ntry:\n    db.update(append('tags', 'z'), Query().project == 'y')\n    print(\"R4 FAIL: no TypeError\")\nexcept TypeError as e:\n    print(\"R4 TypeError:\", e)\n\n# R5: applies to all matching docs\ndb.update(append('tags', 'm'), Query().project == 'x')\nprint(\"R5 all matching:\", db.all())\nEOF",
+    "cd /srv/autose/ws 2>/dev/null || cd .; git diff origin/main...HEAD; echo \"=== final suite ===\"; python -m pytest -q -p no:cacheprovider 2>&1 | grep -E \"passed|failed\"; git status --porcelain"
+  ],
+  "steps": 22,
+  "prompt_tokens": 236374,
+  "completion_tokens": 7994,
+  "sha": "812fd0b04913ef61fa960f57f7acf3f6937e115b",
+  "budget_used": 244368,
+  "budget_limit": 400000
+}

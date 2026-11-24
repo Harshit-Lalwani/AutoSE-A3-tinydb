@@ -1,0 +1,157 @@
+diff --git a/tinydb/table.py b/tinydb/table.py
+index 76470aa..1e51d92 100644
+--- a/tinydb/table.py
++++ b/tinydb/table.py
+@@ -246,7 +246,29 @@ class Table:
+ 
+         return list(iter(self))
+ 
+-    def search(self, cond: QueryLike) -> list[Document]:
++    def _resolve_field_path(self, document: Mapping, field_path: str) -> Optional[object]:
++        """
++        Resolve a dot-notation field path in a document.
++
++        :param document: The document to extract the value from
++        :param field_path: Dot-notation field path (e.g., 'user.score')
++        :returns: The value at the field path, or None if the path doesn't exist
++        """
++        value: Optional[object] = document
++        for key in field_path.split('.'):
++            if isinstance(value, Mapping) and key in value:
++                value = value[key]
++            else:
++                return None
++        return value
++
++    def search(
++        self,
++        cond: QueryLike,
++        sort: Optional[list[tuple[str, int]]] = None,
++        limit: Optional[int] = None,
++        offset: int = 0
++    ) -> list[Document]:
+         """
+         Search for all documents matching a 'where' cond.
+ 
+@@ -257,14 +279,49 @@ class Table:
+         what a later identical search returns.
+ 
+         :param cond: the condition to check against
++        :param sort: optional list of (field, direction) tuples for sorting.
++            Direction should be 1 for ascending, -1 for descending.
++            Field can use dot-notation for nested fields (e.g., 'user.score').
++        :param limit: optional maximum number of documents to return
++        :param offset: optional number of documents to skip before returning results
+         :returns: list of matching documents
+         """
+ 
+-        # First, we check the query cache to see if it has results for this
+-        # query
+-        cached_results = self._query_cache.get(cond)
+-        if cached_results is not None:
+-            return cached_results[:]
++        # Validate sort parameter
++        if sort is not None:
++            if not isinstance(sort, list):
++                raise TypeError("sort must be a list of (field, direction) tuples")
++            for item in sort:
++                if not isinstance(item, tuple) or len(item) != 2:
++                    raise TypeError("sort must be a list of (field, direction) tuples")
++                field, direction = item
++                if not isinstance(field, str):
++                    raise TypeError("sort field must be a string")
++                if direction not in (1, -1):
++                    raise TypeError("sort direction must be 1 (ascending) or -1 (descending)")
++
++        # Validate limit parameter
++        if limit is not None:
++            if not isinstance(limit, int):
++                raise TypeError("limit must be an integer")
++            if limit < 0:
++                raise ValueError("limit must be a non-negative integer")
++
++        # Validate offset parameter
++        if not isinstance(offset, int):
++            raise TypeError("offset must be an integer")
++        if offset < 0:
++            raise ValueError("offset must be a non-negative integer")
++
++        # Check if we can use the cache (only when no sort, limit, or offset)
++        use_cache = sort is None and limit is None and offset == 0
++
++        if use_cache:
++            # First, we check the query cache to see if it has results for this
++            # query
++            cached_results = self._query_cache.get(cond)
++            if cached_results is not None:
++                return cached_results[:]
+ 
+         # Perform the search by applying the query to all documents.
+         # Then, only if the document matches the query, convert it
+@@ -275,24 +332,43 @@ class Table:
+             if cond(doc)
+         ]
+ 
+-        # Only cache cacheable queries.
+-        #
+-        # This weird `getattr` dance is needed to make MyPy happy as
+-        # it doesn't know that a query might have a `is_cacheable` method
+-        # that is not declared in the `QueryLike` protocol due to it being
+-        # optional.
+-        # See: https://github.com/python/mypy/issues/1424
+-        #
+-        # Note also that by default we expect custom query objects to be
+-        # cacheable (which means they need to have a stable hash value).
+-        # This is to keep consistency with TinyDB's behavior before
+-        # `is_cacheable` was introduced which assumed that all queries
+-        # are cacheable.
+-        is_cacheable: Callable[[], bool] = getattr(cond, 'is_cacheable',
+-                                                   lambda: True)
+-        if is_cacheable():
+-            # Update the query cache
+-            self._query_cache[cond] = docs[:]
++        # Apply sorting if requested
++        if sort is not None:
++            # Sort using multiple keys (stable sort, so apply in reverse order)
++            for field, direction in reversed(sort):
++                docs.sort(
++                    key=lambda d: self._resolve_field_path(d, field),  # type: ignore[arg-type,return-value]
++                    reverse=(direction == -1)
++                )
++
++        # Apply offset
++        if offset > 0:
++            docs = docs[offset:]
++
++        # Apply limit
++        if limit is not None:
++            docs = docs[:limit]
++
++        # Only cache cacheable queries when not using sort/limit/offset
++        if use_cache:
++            # Only cache cacheable queries.
++            #
++            # This weird `getattr` dance is needed to make MyPy happy as
++            # it doesn't know that a query might have a `is_cacheable` method
++            # that is not declared in the `QueryLike` protocol due to it being
++            # optional.
++            # See: https://github.com/python/mypy/issues/1424
++            #
++            # Note also that by default we expect custom query objects to be
++            # cacheable (which means they need to have a stable hash value).
++            # This is to keep consistency with TinyDB's behavior before
++            # `is_cacheable` was introduced which assumed that all queries
++            # are cacheable.
++            is_cacheable: Callable[[], bool] = getattr(cond, 'is_cacheable',
++                                                       lambda: True)
++            if is_cacheable():
++                # Update the query cache
++                self._query_cache[cond] = docs[:]
+ 
+         return docs
+ 
+
+
+## Why this stage stopped
+
+Stage `implement`: token budget exhausted: used 2,478,855 of 2,500,000, next call could need up to 45,694.

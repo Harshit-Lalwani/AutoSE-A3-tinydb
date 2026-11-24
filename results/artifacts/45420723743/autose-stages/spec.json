@@ -1,0 +1,113 @@
+{
+  "summary": "Add Query().field.between(low, high) method for inclusive range queries that composes with &, |, ~, works with query cache, treats missing fields as non-matching, and accepts any orderable type with empty result when low > high.",
+  "issue_type": "feature",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with documents {'age': 18}, {'age': 25}, {'age': 65}, {'age': 70}",
+      "when": "db.search(Query().age.between(18, 65))",
+      "then": "returns [{'age': 18}, {'age': 25}, {'age': 65}]"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with documents {'name': 'Alice'}, {'name': 'Bob'}, {'name': 'Charlie'}",
+      "when": "db.search(Query().name.between('Alice', 'Bob'))",
+      "then": "returns [{'name': 'Alice'}, {'name': 'Bob'}] (string ordering)"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "NFR-3",
+      "given": "a TinyDB instance with documents {'age': 25}",
+      "when": "db.search(Query().age.between(65, 18))",
+      "then": "returns [] (empty list, no match when low > high)"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with documents {'ts': datetime(2024,1,1)}, {'ts': datetime(2024,6,1)}, {'ts': datetime(2024,12,31)}",
+      "when": "db.search(Query().ts.between(datetime(2024,1,1), datetime(2024,6,30)))",
+      "then": "returns [{'ts': datetime(2024,1,1)}, {'ts': datetime(2024,6,1)}] (datetime ordering)"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with documents {'price': 9.99}, {'price': 19.99}, {'price': 29.99}",
+      "when": "db.search(Query().price.between(10.0, 20.0))",
+      "then": "returns [{'price': 19.99}] (float ordering)"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with documents {'age': 25}",
+      "when": "db.search(Query().age.between(25, 25))",
+      "then": "returns [{'age': 25}] (single-value range works)"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "FR-2",
+      "given": "a TinyDB instance with documents {'age': 25}, {'name': 'Bob'} (missing age)",
+      "when": "db.search(Query().age.between(18, 65))",
+      "then": "returns [{'age': 25}] (document without 'age' field does not match)"
+    },
+    {
+      "id": "AC-8",
+      "requirement": "FR-3",
+      "given": "a TinyDB instance with documents {'age': 25, 'active': True}, {'age': 30, 'active': False}, {'age': 35, 'active': True}",
+      "when": "db.search((Query().age.between(20, 40)) & (Query().active == True))",
+      "then": "returns [{'age': 25, 'active': True}, {'age': 35, 'active': True}] (AND composition)"
+    },
+    {
+      "id": "AC-9",
+      "requirement": "FR-3",
+      "given": "a TinyDB instance with documents {'age': 15}, {'age': 25}, {'age': 65}",
+      "when": "db.search((Query().age.between(18, 30)) | (Query().age.between(60, 70)))",
+      "then": "returns [{'age': 25}, {'age': 65}] (OR composition)"
+    },
+    {
+      "id": "AC-10",
+      "requirement": "FR-3",
+      "given": "a TinyDB instance with documents {'age': 25}, {'age': 30}, {'age': 35}",
+      "when": "db.search(~(Query().age.between(28, 32)))",
+      "then": "returns [{'age': 25}, {'age': 35}] (NOT composition)"
+    },
+    {
+      "id": "AC-11",
+      "requirement": "FR-4",
+      "given": "a TinyDB instance with CachingMiddleware enabled and documents {'age': 25}, {'age': 30}",
+      "when": "db.search(Query().age.between(20, 30)) called twice",
+      "then": "second call returns cached result (same list object or equal content) without re-scanning storage"
+    },
+    {
+      "id": "AC-12",
+      "requirement": "NFR-2",
+      "given": "the test suite for the new between method",
+      "when": "running pytest with coverage",
+      "then": "coverage for the between method and its query class is 100%"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "between accepts any orderable type (numbers, strings, datetimes, etc.)",
+      "default_used": "Any orderable type, matching existing comparison operators"
+    },
+    {
+      "id": "A-2",
+      "assumption": "When low > high, the query matches no documents (empty result)",
+      "default_used": "Empty result, consistent with (field >= low) & (field <= high) and SQL BETWEEN"
+    },
+    {
+      "id": "A-3",
+      "assumption": "The method name is 'between'",
+      "default_used": "between (from ST-4)"
+    },
+    {
+      "id": "A-4",
+      "assumption": "Both bounds are inclusive (low <= v <= high)",
+      "default_used": "Inclusive (from ST-5 'both ends included')"
+    }
+  ],
+  "blocking_questions": []
+}

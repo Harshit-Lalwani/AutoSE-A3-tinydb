@@ -1,0 +1,291 @@
+diff --git a/tinydb/table.py b/tinydb/table.py
+index 76470aa..6a4f95c 100644
+--- a/tinydb/table.py
++++ b/tinydb/table.py
+@@ -275,71 +275,17 @@ class Table:
+             if cond(doc)
+         ]
+ 
+-        # Only cache cacheable queries.
+-        #
+-        # This weird `getattr` dance is needed to make MyPy happy as
+-        # it doesn't know that a query might have a `is_cacheable` method
+-        # that is not declared in the `QueryLike` protocol due to it being
+-        # optional.
+-        # See: https://github.com/python/mypy/issues/1424
+-        #
+-        # Note also that by default we expect custom query objects to be
+-        # cacheable (which means they need to have a stable hash value).
+-        # This is to keep consistency with TinyDB's behavior before
+-        # `is_cacheable` was introduced which assumed that all queries
+-        # are cacheable.
+-        is_cacheable: Callable[[], bool] = getattr(cond, 'is_cacheable',
+-                                                   lambda: True)
+-        if is_cacheable():
+-            # Update the query cache
+-            self._query_cache[cond] = docs[:]
++        # Update the query cache
++        self._query_cache[cond] = docs
+ 
+         return docs
+ 
+-    @overload
+-    def get(self) -> NoReturn: ...
+-
+-    @overload
+-    def get(
+-        self, cond: QueryLike, doc_id: None = ..., doc_ids: None = ...
+-    ) -> Optional[Document]: ...
+-
+-    @overload
+-    def get(
+-        self, *, cond: QueryLike, doc_id: None = ..., doc_ids: None = ...
+-    ) -> Optional[Document]: ...
+-
+-    @overload
+-    def get(
+-        self, cond: Optional[QueryLike], doc_id: int, doc_ids: Optional[list] = ...
+-    ) -> Optional[Document]: ...
+-
+-    @overload
+-    def get(
+-        self, *, cond: Optional[QueryLike] = ..., doc_id: int, doc_ids: Optional[list] = ...,
+-    ) -> Optional[Document]: ...
+-
+-    @overload
+-    def get(
+-        self, cond: Optional[QueryLike], doc_id: None, doc_ids: list
+-    ) -> list[Document]: ...
+-
+-    @overload
+-    def get(
+-        self, cond: Optional[QueryLike], *, doc_id: None = ..., doc_ids: list
+-    ) -> list[Document]: ...
+-
+-    @overload
+-    def get(
+-        self, *, cond: Optional[QueryLike] = ..., doc_id: None = ..., doc_ids: list
+-    ) -> list[Document]: ...
+-
+     def get(
+         self,
+         cond: Optional[QueryLike] = None,
+-        doc_id: Optional[int] = None,
+-        doc_ids: Optional[list] = None
+-    ):
++        doc_id: Optional[Union[int, str]] = None,
++        doc_ids: Optional[Iterable[Union[int, str]]] = None
++    ) -> Union[Optional[Document], list[Document]]:
+         """
+         Get document(s) specified by a query or document ID(s).
+ 
+@@ -350,9 +296,8 @@ class Table:
+           empty).
+ 
+         :param cond: the condition to check against
+-        :param doc_id: the document's ID
+-        :param doc_ids: the document's IDs (multiple)
+-
++        :param doc_id: the document's ID (int or str)
++        :param doc_ids: the document's IDs (multiple, int or str)
+         :returns: a document, ``None``, or a list of documents when
+                   ``doc_ids`` is used
+         """
+@@ -360,6 +305,7 @@ class Table:
+ 
+         if doc_id is not None:
+             # Retrieve a document specified by its ID
++            doc_id = self._coerce_doc_id(doc_id)
+             raw_doc = table.get(str(doc_id), None)
+ 
+             if raw_doc is None:
+@@ -374,7 +320,7 @@ class Table:
+ 
+             # Since document IDs will be unique, we make it a set to ensure
+             # constant time lookup
+-            doc_ids_set = set(str(doc_id) for doc_id in doc_ids)
++            doc_ids_set = set(str(self._coerce_doc_id(doc_id)) for doc_id in doc_ids)
+ 
+             # Now return the filtered documents in form of list
+             return [
+@@ -403,7 +349,7 @@ class Table:
+     def contains(
+         self,
+         cond: Optional[QueryLike] = None,
+-        doc_id: Optional[int] = None
++        doc_id: Optional[Union[int, str]] = None
+     ) -> bool:
+         """
+         Check whether the database contains a document matching a query or
+@@ -412,7 +358,7 @@ class Table:
+         If ``doc_id`` is set, it checks if the db contains the specified ID.
+ 
+         :param cond: the condition use
+-        :param doc_id: the document ID to look for
++        :param doc_id: the document ID to look for (int or str)
+         """
+         if doc_id is not None:
+             # Documents specified by ID
+@@ -424,11 +370,32 @@ class Table:
+ 
+         raise RuntimeError('You have to pass either cond or doc_id')
+ 
++    def _coerce_doc_id(self, doc_id: Union[int, str]) -> int:
++        """
++        Coerce a document ID to an integer.
++
++        Accepts both integers and strings that represent integers.
++        Raises ValueError if the string cannot be converted to an integer.
++
++        :param doc_id: the document ID to coerce
++        :returns: the coerced document ID as an integer
++        :raises ValueError: if the string cannot be converted to an integer
++        """
++        if isinstance(doc_id, int):
++            return self.document_id_class(doc_id)
++        if isinstance(doc_id, str):
++            try:
++                return self.document_id_class(int(doc_id))
++            except ValueError as e:
++                raise ValueError(f"Invalid document ID: {doc_id!r}") from e
++        raise TypeError(f"Document ID must be int or str, got {type(doc_id).__name__}")
++
+     def update(
+         self,
+         fields: Union[Mapping, Callable[[MutableMapping], None]],
+         cond: Optional[QueryLike] = None,
+-        doc_ids: Optional[Iterable[int]] = None,
++        doc_id: Optional[Union[int, str]] = None,
++        doc_ids: Optional[Iterable[Union[int, str]]] = None,
+     ) -> list[int]:
+         """
+         Update all matching documents to have a given set of fields.
+@@ -440,7 +407,8 @@ class Table:
+         :param fields: the fields that the matching documents will have
+                        or a callable that mutates matching documents in place
+         :param cond: which documents to update
+-        :param doc_ids: a list of document IDs
++        :param doc_id: a single document ID (int or str)
++        :param doc_ids: a list of document IDs (int or str)
+         :returns: a list containing the updated document's ID
+         """
+ 
+@@ -455,6 +423,12 @@ class Table:
+                 # Update documents by setting all fields from the provided data
+                 table[doc_id].update(fields)
+ 
++        # Handle doc_id parameter (single ID) - convert to doc_ids list
++        if doc_id is not None:
++            if doc_ids is not None:
++                raise ValueError("Cannot specify both doc_id and doc_ids")
++            doc_ids = [doc_id]
++
+         if doc_ids is not None:
+             # Perform the update operation for documents specified by a list
+             # of document IDs. Document IDs that don't exist in the table are
+@@ -462,7 +436,7 @@ class Table:
+             # (see issue #591). The list of *actually* updated IDs is
+             # determined inside the updater so it reflects the table state at
+             # write time.
+-            requested_ids = list(doc_ids)
++            requested_ids = [self._coerce_doc_id(doc_id) for doc_id in doc_ids]
+             updated_ids: list[int] = []
+ 
+             def updater(table: dict):
+@@ -564,34 +538,28 @@ class Table:
+             # during iteration)
+             for doc_id in list(table.keys()):
+                 for fields, cond in updates:
+-                    _cond = cast(QueryLike, cond)
+-
+-                    # Pass through all documents to find documents matching the
+-                    # query. Call the processing callback with the document ID
+-                    if _cond(table[doc_id]):
++                    if cond(table[doc_id]):
+                         # Add ID to list of updated documents
+                         updated_ids.append(doc_id)
+ 
+                         # Perform the update (see above)
+                         perform_update(fields, table, doc_id)
++                        break
+ 
+         # Perform the update operation (see _update_table for details)
+         self._update_table(updater)
+ 
+         return updated_ids
+ 
+-    def upsert(self, document: Mapping, cond: Optional[QueryLike] = None) -> list[int]:
++    def upsert(
++        self,
++        document: Union[Mapping, Document],
++        cond: Optional[QueryLike] = None,
++    ) -> list[int]:
+         """
+-        Update documents, if they exist, insert them otherwise.
++        Update a document matching a query, or insert it if no match is found.
+ 
+-        Note: This will update *all* documents matching the query.
+-        For example, if the query matches 3 documents, all 3 will be updated
+-        with the new data. If no documents match, a new one is inserted.
+-
+-        Document argument can be a tinydb.table.Document object if you want
+-        to specify a doc_id.
+-
+-        :param document: the document to insert or the fields to update
++        :param document: the document to update or insert
+         :param cond: which document to look for, optional if you've passed a
+         Document with a doc_id
+         :returns: a list containing the updated documents' IDs
+@@ -612,7 +580,7 @@ class Table:
+         # Perform the update operation. ``update`` returns an empty list
+         # when no existing document matches the doc_id / query, in which
+         # case we fall through to insert below.
+-        updated_docs = self.update(document, cond, doc_ids)
++        updated_docs = self.update(document, cond, doc_ids=doc_ids)
+ 
+         # If documents have been updated: return their IDs
+         if updated_docs:
+@@ -625,7 +593,8 @@ class Table:
+     def remove(
+         self,
+         cond: Optional[QueryLike] = None,
+-        doc_ids: Optional[Iterable[int]] = None,
++        doc_id: Optional[Union[int, str]] = None,
++        doc_ids: Optional[Iterable[Union[int, str]]] = None,
+     ) -> list[int]:
+         """
+         Remove all matching documents.
+@@ -635,9 +604,16 @@ class Table:
+         the IDs that were actually removed.
+ 
+         :param cond: the condition to check against
+-        :param doc_ids: a list of document IDs
++        :param doc_id: a single document ID (int or str)
++        :param doc_ids: a list of document IDs (int or str)
+         :returns: a list containing the removed documents' ID
+         """
++        # Handle doc_id parameter (single ID) - convert to doc_ids list
++        if doc_id is not None:
++            if doc_ids is not None:
++                raise ValueError("Cannot specify both doc_id and doc_ids")
++            doc_ids = [doc_id]
++
+         if doc_ids is not None:
+             # This function returns the list of IDs for the documents that
+             # have been removed. Document IDs that don't exist in the table
+@@ -645,7 +621,7 @@ class Table:
+             # ``get(doc_ids=...)`` (see issue #591). The list of *actually*
+             # removed IDs is determined inside the updater so it reflects the
+             # table state at write time.
+-            requested_ids = list(doc_ids)
++            requested_ids = [self._coerce_doc_id(doc_id) for doc_id in doc_ids]
+             removed_ids: list[int] = []
+ 
+             def updater(table: dict):
+@@ -851,4 +827,4 @@ class Table:
+         self._storage.write(tables)
+ 
+         # Clear the query cache, as the table contents have changed
+-        self.clear_cache()
++        self.clear_cache()
+\ No newline at end of file

@@ -1,0 +1,87 @@
+{
+  "summary": "Add Query().field.between(low, high) method for inclusive range queries, matching SQL BETWEEN semantics, composable with & | ~ and compatible with query cache.",
+  "issue_type": "feature",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with documents [{'age': 18}, {'age': 25}, {'age': 65}, {'age': 70}]",
+      "when": "db.search(Query().age.between(18, 65))",
+      "then": "returns [{'age': 18}, {'age': 25}, {'age': 65}]"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with documents [{'price': 10.5}, {'price': 100.0}, {'price': 1000.0}]",
+      "when": "db.search(Query().price.between(10.5, 100.0))",
+      "then": "returns [{'price': 10.5}, {'price': 100.0}]"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with documents [{'ts': '2024-01-01'}, {'ts': '2024-06-15'}, {'ts': '2024-12-31'}]",
+      "when": "db.search(Query().ts.between('2024-01-01', '2024-06-15'))",
+      "then": "returns [{'ts': '2024-01-01'}, {'ts': '2024-06-15'}]"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-2",
+      "given": "a TinyDB instance with documents [{'age': 25}, {'name': 'Bob'}, {'age': 30, 'name': 'Alice'}]",
+      "when": "db.search(Query().age.between(20, 40))",
+      "then": "returns [{'age': 25}, {'age': 30, 'name': 'Alice'}] (document without 'age' excluded)"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-3",
+      "given": "a TinyDB instance with documents [{'age': 25, 'active': True}, {'age': 30, 'active': False}, {'age': 35, 'active': True}]",
+      "when": "db.search((Query().age.between(20, 40)) & (Query().active == True))",
+      "then": "returns [{'age': 25, 'active': True}, {'age': 35, 'active': True}]"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-3",
+      "given": "a TinyDB instance with documents [{'age': 15}, {'age': 25}, {'age': 65}]",
+      "when": "db.search(~(Query().age.between(18, 65)))",
+      "then": "returns [{'age': 15}]"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "FR-4",
+      "given": "a TinyDB instance with CachingMiddleware enabled and documents [{'age': 25}, {'age': 30}]",
+      "when": "db.search(Query().age.between(20, 40)) called twice",
+      "then": "second call returns cached result [{'age': 25}, {'age': 30}] without re-executing query"
+    },
+    {
+      "id": "AC-8",
+      "requirement": "NFR-1",
+      "given": "a TinyDB instance with documents [{'val': 'apple'}, {'val': 'banana'}, {'val': 'cherry'}]",
+      "when": "db.search(Query().val.between('banana', 'cherry'))",
+      "then": "returns [{'val': 'banana'}, {'val': 'cherry'}] (string comparison works)"
+    },
+    {
+      "id": "AC-9",
+      "requirement": "NFR-2",
+      "given": "a TinyDB instance with documents [{'age': 25}, {'age': 30}]",
+      "when": "db.search(Query().age.between(65, 18))",
+      "then": "returns [] (empty list, no error raised)"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "Method signature is between(low, high) with positional arguments, inclusive bounds, name 'between'",
+      "default_used": "Exactly as shown in issue: Query().age.between(18, 65)"
+    },
+    {
+      "id": "A-2",
+      "assumption": "Works with any type supporting <= comparison (numbers, strings, dates, etc.)",
+      "default_used": "Mirror existing comparison operator behaviour"
+    },
+    {
+      "id": "A-3",
+      "assumption": "between(low, high) with low > high returns a query matching nothing (empty result)",
+      "default_used": "Consistent with SQL BETWEEN and composed (field >= low) & (field <= high) behaviour"
+    }
+  ],
+  "blocking_questions": []
+}

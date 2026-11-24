@@ -1,0 +1,101 @@
+{
+  "summary": "Add optional sort, limit, and offset parameters to Table.search() for server-side ordering and pagination of query results.",
+  "issue_type": "feature",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a table with documents {'name': 'Bob', 'age': 30}, {'name': 'Alice', 'age': 25}, {'name': 'Carol', 'age': 35}",
+      "when": "calling table.search(Query().age > 20, sort=[('age', 1)])",
+      "then": "the returned list is ordered by age ascending: [{'name': 'Alice', 'age': 25}, {'name': 'Bob', 'age': 30}, {'name': 'Carol', 'age': 35}]"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1",
+      "given": "a table with documents {'name': 'Bob', 'age': 30}, {'name': 'Alice', 'age': 25}, {'name': 'Carol', 'age': 35}",
+      "when": "calling table.search(Query().age > 20, sort=[('age', -1)])",
+      "then": "the returned list is ordered by age descending: [{'name': 'Carol', 'age': 35}, {'name': 'Bob', 'age': 30}, {'name': 'Alice', 'age': 25}]"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-2",
+      "given": "a table with 5 documents matching a query",
+      "when": "calling table.search(query, limit=2, offset=1)",
+      "then": "the returned list contains exactly 2 documents: the 2nd and 3rd items of the full sorted result set"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-2",
+      "given": "a table with 3 documents matching a query",
+      "when": "calling table.search(query, limit=10, offset=0)",
+      "then": "the returned list contains all 3 documents (limit larger than result set)"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-3",
+      "given": "a table with documents inserted in random order",
+      "when": "calling table.search(query) without sort parameter",
+      "then": "the returned list order is stable across repeated calls with the same database state (current behaviour preserved)"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-4",
+      "given": "a table with documents {'id': 1}, {'id': 2}, {'id': 3}, {'id': 4} matching a query",
+      "when": "calling table.search(query, sort=[('id', 1)], limit=2, offset=1)",
+      "then": "the returned list is [{'id': 2}, {'id': 3}] (offset applied first, then limit)"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "FR-5",
+      "given": "a table with any documents",
+      "when": "calling table.search(query, sort=[('age', 2)])",
+      "then": "ValueError is raised with a message indicating invalid direction"
+    },
+    {
+      "id": "AC-8",
+      "requirement": "FR-6",
+      "given": "a table with any documents",
+      "when": "calling table.search(query, limit=-1) or table.search(query, offset=-5)",
+      "then": "ValueError is raised with a message indicating negative value not allowed"
+    },
+    {
+      "id": "AC-9",
+      "requirement": "FR-7",
+      "given": "a table with any documents",
+      "when": "calling table.search(query, sort='age') or table.search(query, limit='two') or table.search(query, offset=1.5)",
+      "then": "TypeError is raised with a message indicating expected type"
+    },
+    {
+      "id": "AC-10",
+      "requirement": "FR-8",
+      "given": "a table with existing code calling table.search(query) without new parameters",
+      "when": "running that code after the change",
+      "then": "the return value and order are identical to the pre-change behaviour"
+    },
+    {
+      "id": "AC-11",
+      "requirement": "NFR-1",
+      "given": "a table with 5000 documents matching a query",
+      "when": "calling table.search(query, sort=[('field', 1)], limit=10)",
+      "then": "the call completes without MemoryError and returns exactly 10 documents (verifies in-memory sort does not explode memory)"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "sort uses MongoDB-style list of (field_path, direction) tuples with direction 1/-1",
+      "default_used": "A-1"
+    },
+    {
+      "id": "A-2",
+      "assumption": "pagination uses limit + offset integer parameters on Table.search()",
+      "default_used": "A-2"
+    },
+    {
+      "id": "A-3",
+      "assumption": "new parameters are optional keyword arguments on Table.search()",
+      "default_used": "A-3"
+    }
+  ],
+  "blocking_questions": []
+}

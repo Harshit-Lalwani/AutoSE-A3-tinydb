@@ -1,0 +1,14 @@
+{
+  "files": [
+    {
+      "path": "tinydb/table.py",
+      "new": false,
+      "symbols": [
+        "Table.search"
+      ],
+      "new_symbols": [
+        "Table._resolve_field_path"
+      ]
+    }
+  ]
+}

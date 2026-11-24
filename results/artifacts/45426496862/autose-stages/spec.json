@@ -1,0 +1,75 @@
+{
+  "summary": "Make TinyDB.update() and TinyDB.remove() accept string document IDs (both single doc_id and doc_ids list) by converting valid integer strings to int, matching the existing behaviour of get() and contains(); non-existent and unparsable IDs are skipped silently; return value remains list[int].",
+  "issue_type": "bug",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with documents inserted (doc_ids 1, 2, 3)",
+      "when": "db.update({'a': 10}, doc_ids=['1', '2']) is called",
+      "then": "the call returns [1, 2] and db.get(doc_ids=[1, 2]) shows {'a': 10} for both documents"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1, FR-6",
+      "given": "a TinyDB instance with documents inserted (doc_ids 1, 2, 3)",
+      "when": "db.update({'a': 10}, doc_ids=['1', '999']) is called with one valid and one non-existent string ID",
+      "then": "the call returns [1] and only doc_id 1 is updated; doc_id 999 is skipped silently"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-2",
+      "given": "a TinyDB instance with documents inserted (doc_ids 1, 2, 3)",
+      "when": "db.remove(doc_ids=['2', '3']) is called",
+      "then": "the call returns [2, 3] and db.all() returns only the document with doc_id 1"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-2, FR-6",
+      "given": "a TinyDB instance with documents inserted (doc_ids 1, 2, 3)",
+      "when": "db.remove(doc_ids=['2', '999']) is called with one valid and one non-existent string ID",
+      "then": "the call returns [2] and only doc_id 2 is removed; doc_id 999 is skipped silently"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-3",
+      "given": "a TinyDB instance with documents inserted (doc_ids 1, 2, 3)",
+      "when": "db.update({'a': 10}, doc_id='2') is called with a single string ID",
+      "then": "the call returns [2] and db.get(doc_id=2) shows {'a': 10}"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-4",
+      "given": "a TinyDB instance with documents inserted (doc_ids 1, 2, 3)",
+      "when": "db.remove(doc_id='3') is called with a single string ID",
+      "then": "the call returns [3] and db.get(doc_id=3) returns None"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "FR-7",
+      "given": "a TinyDB instance with documents inserted (doc_ids 1, 2, 3)",
+      "when": "db.update({'a': 10}, doc_ids=['1', 'abc', '']) is called with valid and unparsable string IDs",
+      "then": "the call returns [1] and only doc_id 1 is updated; 'abc' and '' are skipped silently"
+    },
+    {
+      "id": "AC-8",
+      "requirement": "NFR-2",
+      "given": "a TinyDB instance with documents inserted (doc_ids 1, 2, 3)",
+      "when": "db.update({'a': 10}, doc_ids=[1, 2]) and db.remove(doc_ids=[2]) are called with integer IDs",
+      "then": "behaviour is identical to before: update returns [1, 2], remove returns [2], and documents are modified accordingly"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "Strings that cannot be parsed as integers (e.g. 'abc', '1.5', '') are skipped silently, consistent with non-existent IDs.",
+      "default_used": "Skip silently (no ValueError raised)."
+    },
+    {
+      "id": "A-2",
+      "assumption": "The single doc_id parameter (not just doc_ids list) accepts strings for update() and remove(), matching contains(doc_id=...).",
+      "default_used": "Yes, accept strings for single doc_id for API consistency."
+    }
+  ],
+  "blocking_questions": []
+}

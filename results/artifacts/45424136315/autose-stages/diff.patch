@@ -1,0 +1,356 @@
+diff --git a/tests/test_autose_issue_2.py b/tests/test_autose_issue_2.py
+new file mode 100644
+index 0000000..ee97156
+--- /dev/null
++++ b/tests/test_autose_issue_2.py
+@@ -0,0 +1,266 @@
++"""
++Tests for issue #2: Make Table.update() and Table.remove() accept string document IDs
++in doc_ids (e.g. ['1', '2']) by converting them to int, matching Table.get() behaviour.
++"""
++
++import pytest
++
++from tinydb import TinyDB, Query
++from tinydb.storages import MemoryStorage
++
++
++@pytest.fixture
++def db():
++    """Create a fresh TinyDB instance with 3 documents (doc_ids 1, 2, 3)."""
++    db = TinyDB(storage=MemoryStorage)
++    db.truncate()
++    db.insert_multiple([{'a': 1}, {'a': 2}, {'a': 3}])
++    yield db
++    db.close()
++
++
++class TestUpdateWithStringDocIds:
++    """Tests for Table.update() accepting string document IDs."""
++
++    def test_ac1_update_with_string_doc_ids(self, db):
++        """
++        AC-1: GIVEN a TinyDB table with three documents inserted via
++        db.insert_multiple([{'a': 1}, {'a': 2}, {'a': 3}]) so their doc_ids are 1, 2, 3
++        WHEN calling table.update({'a': 10}, doc_ids=['1', '2'])
++        THEN the method returns [1, 2] and table.get(doc_id=1) == {'a': 10}
++        and table.get(doc_id=2) == {'a': 10}
++        """
++        result = db.update({'a': 10}, doc_ids=['1', '2'])
++
++        assert result == [1, 2]
++        assert db.get(doc_id=1) == {'a': 10}
++        assert db.get(doc_id=2) == {'a': 10}
++        # Document 3 should be unchanged
++        assert db.get(doc_id=3) == {'a': 3}
++
++    def test_ac2_update_with_string_doc_ids_skipping_nonexistent(self, db):
++        """
++        AC-2: GIVEN same table as AC-1
++        WHEN calling table.update({'a': 99}, doc_ids=['1', '999', '2']) where 999 does not exist
++        THEN the method returns [1, 2] (skipping non-existent 999) and documents 1 and 2 are updated
++        """
++        result = db.update({'a': 99}, doc_ids=['1', '999', '2'])
++
++        assert result == [1, 2]
++        assert db.get(doc_id=1) == {'a': 99}
++        assert db.get(doc_id=2) == {'a': 99}
++        # Document 3 should be unchanged
++        assert db.get(doc_id=3) == {'a': 3}
++
++    def test_ac5_update_with_invalid_string_raises_valueerror(self, db):
++        """
++        AC-5: GIVEN a TinyDB table with at least one document
++        WHEN calling table.update({'a': 1}, doc_ids=['abc'])
++        THEN the method raises ValueError (matching Table.get(doc_id='abc') behaviour)
++        """
++        with pytest.raises(ValueError):
++            db.update({'a': 1}, doc_ids=['abc'])
++
++    def test_ac6_update_with_mixed_int_str_doc_ids(self, db):
++        """
++        AC-6: GIVEN a TinyDB table with documents 1, 2, 3
++        WHEN calling table.update({'a': 5}, doc_ids=[1, '2', 3])
++        THEN the method returns [1, 2, 3] and all three documents are updated
++        """
++        result = db.update({'a': 5}, doc_ids=[1, '2', 3])
++
++        assert result == [1, 2, 3]
++        assert db.get(doc_id=1) == {'a': 5}
++        assert db.get(doc_id=2) == {'a': 5}
++        assert db.get(doc_id=3) == {'a': 5}
++
++
++class TestRemoveWithStringDocIds:
++    """Tests for Table.remove() accepting string document IDs."""
++
++    def test_ac3_remove_with_string_doc_ids(self, db):
++        """
++        AC-3: GIVEN a TinyDB table with three documents (doc_ids 1, 2, 3)
++        WHEN calling table.remove(doc_ids=['2', '3'])
++        THEN the method returns [2, 3] and table.get(doc_id=2) is None
++        and table.get(doc_id=3) is None
++        """
++        result = db.remove(doc_ids=['2', '3'])
++
++        assert result == [2, 3]
++        assert db.get(doc_id=2) is None
++        assert db.get(doc_id=3) is None
++        # Document 1 should still exist
++        assert db.get(doc_id=1) == {'a': 1}
++
++    def test_ac4_remove_with_string_doc_ids_skipping_nonexistent(self, db):
++        """
++        AC-4: GIVEN same table as AC-3
++        WHEN calling table.remove(doc_ids=['1', '999']) where 999 does not exist
++        THEN the method returns [1] (skipping 999) and only document 1 is removed
++        """
++        result = db.remove(doc_ids=['1', '999'])
++
++        assert result == [1]
++        assert db.get(doc_id=1) is None
++        # Documents 2 and 3 should still exist
++        assert db.get(doc_id=2) == {'a': 2}
++        assert db.get(doc_id=3) == {'a': 3}
++
++    def test_ac5_remove_with_invalid_string_raises_valueerror(self, db):
++        """
++        AC-5: GIVEN a TinyDB table with at least one document
++        WHEN calling table.remove(doc_ids=['abc'])
++        THEN the method raises ValueError (matching Table.get(doc_id='abc') behaviour)
++        """
++        with pytest.raises(ValueError):
++            db.remove(doc_ids=['abc'])
++
++
++class TestNoRegression:
++    """Tests to ensure no regression in existing functionality (AC-7)."""
++
++    def test_ac7_get_with_string_doc_id(self, db):
++        """AC-7: table.get(doc_id='1') behaves exactly as before."""
++        # get with string doc_id should work (existing behavior)
++        doc = db.get(doc_id='1')
++        assert doc == {'a': 1}
++        assert doc.doc_id == 1
++
++    def test_ac7_get_with_string_doc_ids_list(self, db):
++        """AC-7: table.get(doc_ids=['1', '2']) behaves exactly as before."""
++        docs = db.get(doc_ids=['1', '2'])
++        assert len(docs) == 2
++        assert docs[0] == {'a': 1}
++        assert docs[0].doc_id == 1
++        assert docs[1] == {'a': 2}
++        assert docs[1].doc_id == 2
++
++    def test_ac7_contains_with_string_doc_id(self, db):
++        """AC-7: table.contains(doc_id='1') behaves exactly as before."""
++        assert db.contains(doc_id='1') is True
++        assert db.contains(doc_id='999') is False
++
++    def test_ac7_insert_unchanged(self, db):
++        """AC-7: table.insert({'x': 1}) behaves exactly as before."""
++        doc_id = db.insert({'x': 1})
++        assert doc_id == 4  # Next ID after 1, 2, 3
++        assert db.get(doc_id=4) == {'x': 1}
++
++    def test_ac7_upsert_unchanged(self, db):
++        """AC-7: table.upsert({'x': 2}, Query().x == 2) behaves exactly as before."""
++        # Insert a document first
++        db.insert({'x': 1})
++        # Upsert should update existing
++        db.upsert({'x': 2}, Query().x == 1)
++        assert db.get(Query().x == 2) == {'x': 2}
++        # Upsert should insert new
++        db.upsert({'x': 3}, Query().x == 999)
++        assert db.get(Query().x == 3) == {'x': 3}
++
++    def test_ac7_update_with_int_doc_ids_still_works(self, db):
++        """AC-7: table.update with int doc_ids still works."""
++        result = db.update({'a': 100}, doc_ids=[1, 2])
++        assert result == [1, 2]
++        assert db.get(doc_id=1) == {'a': 100}
++        assert db.get(doc_id=2) == {'a': 100}
++
++    def test_ac7_remove_with_int_doc_ids_still_works(self, db):
++        """AC-7: table.remove with int doc_ids still works."""
++        result = db.remove(doc_ids=[1, 2])
++        assert result == [1, 2]
++        assert db.get(doc_id=1) is None
++        assert db.get(doc_id=2) is None
++
++    def test_ac7_update_with_query_still_works(self, db):
++        """AC-7: table.update with query condition still works."""
++        result = db.update({'a': 200}, Query().a == 2)
++        assert result == [2]
++        assert db.get(doc_id=2) == {'a': 200}
++
++    def test_ac7_remove_with_query_still_works(self, db):
++        """AC-7: table.remove with query condition still works."""
++        result = db.remove(Query().a == 2)
++        assert result == [2]
++        assert db.get(doc_id=2) is None
++
++    def test_ac7_update_all_still_works(self, db):
++        """AC-7: table.update without condition or doc_ids still works."""
++        result = db.update({'updated': True})
++        assert result == [1, 2, 3]
++        assert all(doc.get('updated') is True for doc in db.all())
++
++    def test_ac7_get_invalid_string_raises_valueerror(self, db):
++        """AC-7: table.get(doc_id='abc') raises ValueError (existing behavior)."""
++        with pytest.raises(ValueError):
++            db.get(doc_id='abc')
++
++    def test_ac7_get_invalid_string_in_list_raises_valueerror(self, db):
++        """AC-7: table.get(doc_ids=['abc']) raises ValueError (existing behavior)."""
++        with pytest.raises(ValueError):
++            db.get(doc_ids=['abc'])
++
++    def test_ac7_contains_invalid_string_raises_valueerror(self, db):
++        """AC-7: table.contains(doc_id='abc') raises ValueError (existing behavior)."""
++        with pytest.raises(ValueError):
++            db.contains(doc_id='abc')
++
++
++class TestEdgeCases:
++    """Additional edge case tests."""
++
++    def test_update_empty_doc_ids_list(self, db):
++        """Update with empty doc_ids list returns empty list."""
++        result = db.update({'a': 10}, doc_ids=[])
++        assert result == []
++
++    def test_remove_empty_doc_ids_list(self, db):
++        """Remove with empty doc_ids list returns empty list."""
++        result = db.remove(doc_ids=[])
++        assert result == []
++
++    def test_update_with_negative_string_doc_id(self, db):
++        """Update with negative string doc_id (invalid) raises ValueError."""
++        with pytest.raises(ValueError):
++            db.update({'a': 1}, doc_ids=['-1'])
++
++    def test_remove_with_negative_string_doc_id(self, db):
++        """Remove with negative string doc_id (invalid) raises ValueError."""
++        with pytest.raises(ValueError):
++            db.remove(doc_ids=['-1'])
++
++    def test_update_with_float_string_doc_id(self, db):
++        """Update with float string doc_id (invalid) raises ValueError."""
++        with pytest.raises(ValueError):
++            db.update({'a': 1}, doc_ids=['1.5'])
++
++    def test_remove_with_float_string_doc_id(self, db):
++        """Remove with float string doc_id (invalid) raises ValueError."""
++        with pytest.raises(ValueError):
++            db.remove(doc_ids=['1.5'])
++
++    def test_update_returns_int_ids_not_strings(self, db):
++        """Update returns list of int IDs, not strings."""
++        result = db.update({'a': 10}, doc_ids=['1', '2'])
++        assert all(isinstance(id_, int) for id_ in result)
++        assert result == [1, 2]
++
++    def test_remove_returns_int_ids_not_strings(self, db):
++        """Remove returns list of int IDs, not strings."""
++        result = db.remove(doc_ids=['1', '2'])
++        assert all(isinstance(id_, int) for id_ in result)
++        assert result == [1, 2]
++
++    def test_update_with_duplicate_string_doc_ids(self, db):
++        """Update with duplicate string doc_ids updates each document once."""
++        result = db.update({'a': 10}, doc_ids=['1', '1', '2'])
++        assert result == [1, 2]
++        assert db.get(doc_id=1) == {'a': 10}
++        assert db.get(doc_id=2) == {'a': 10}
++
++    def test_remove_with_duplicate_string_doc_ids(self, db):
++        """Remove with duplicate string doc_ids removes each document once."""
++        result = db.remove(doc_ids=['1', '1', '2'])
++        assert result == [1, 2]
++        assert db.get(doc_id=1) is None
++        assert db.get(doc_id=2) is None
+\ No newline at end of file
+diff --git a/tinydb/table.py b/tinydb/table.py
+index 76470aa..c50de92 100644
+--- a/tinydb/table.py
++++ b/tinydb/table.py
+@@ -359,6 +359,13 @@ class Table:
+         table = self._read_table()
+ 
+         if doc_id is not None:
++            # Convert doc_id to document_id_class (e.g., int) to match
++            # the table's key type. Invalid strings will raise ValueError.
++            try:
++                doc_id = self.document_id_class(doc_id)
++            except ValueError as e:
++                raise ValueError(f"Invalid document ID: {e}") from e
++
+             # Retrieve a document specified by its ID
+             raw_doc = table.get(str(doc_id), None)
+ 
+@@ -369,12 +376,21 @@ class Table:
+             return self.document_class(raw_doc, doc_id)
+ 
+         elif doc_ids is not None:
++            # Convert doc_ids to document_id_class (e.g., int) to match
++            # the table's key type. Invalid strings will raise ValueError.
++            try:
++                converted_ids = [
++                    self.document_id_class(doc_id) for doc_id in doc_ids
++                ]
++            except ValueError as e:
++                raise ValueError(f"Invalid document ID: {e}") from e
++
+             # Filter the table by extracting out all those documents which
+             # have doc id specified in the doc_id list.
+ 
+             # Since document IDs will be unique, we make it a set to ensure
+             # constant time lookup
+-            doc_ids_set = set(str(doc_id) for doc_id in doc_ids)
++            doc_ids_set = set(str(doc_id) for doc_id in converted_ids)
+ 
+             # Now return the filtered documents in form of list
+             return [
+@@ -462,7 +478,19 @@ class Table:
+             # (see issue #591). The list of *actually* updated IDs is
+             # determined inside the updater so it reflects the table state at
+             # write time.
+-            requested_ids = list(doc_ids)
++            # Convert doc_ids to document_id_class (e.g., int) to match the
++            # table's key type. Invalid strings will raise ValueError.
++            try:
++                requested_ids = [
++                    self.document_id_class(doc_id) for doc_id in doc_ids
++                ]
++            except ValueError as e:
++                raise ValueError(
++                    f"Invalid document ID: {e}"
++                ) from e
++            # Deduplicate while preserving order
++            seen = set()
++            requested_ids = [x for x in requested_ids if not (x in seen or seen.add(x))]
+             updated_ids: list[int] = []
+ 
+             def updater(table: dict):
+@@ -645,7 +673,19 @@ class Table:
+             # ``get(doc_ids=...)`` (see issue #591). The list of *actually*
+             # removed IDs is determined inside the updater so it reflects the
+             # table state at write time.
+-            requested_ids = list(doc_ids)
++            # Convert doc_ids to document_id_class (e.g., int) to match the
++            # table's key type. Invalid strings will raise ValueError.
++            try:
++                requested_ids = [
++                    self.document_id_class(doc_id) for doc_id in doc_ids
++                ]
++            except ValueError as e:
++                raise ValueError(
++                    f"Invalid document ID: {e}"
++                ) from e
++            # Deduplicate while preserving order
++            seen = set()
++            requested_ids = [x for x in requested_ids if not (x in seen or seen.add(x))]
+             removed_ids: list[int] = []
+ 
+             def updater(table: dict):

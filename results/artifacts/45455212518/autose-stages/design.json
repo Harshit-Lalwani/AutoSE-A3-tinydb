@@ -1,0 +1,12 @@
+{
+  "files": [
+    {
+      "path": "tinydb/table.py",
+      "new": false,
+      "symbols": [
+        "Table._update_table"
+      ],
+      "new_symbols": []
+    }
+  ]
+}

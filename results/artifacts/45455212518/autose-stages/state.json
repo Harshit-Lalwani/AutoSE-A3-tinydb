@@ -1,0 +1,177 @@
+{
+  "issue": 1,
+  "variant": "default",
+  "branch": "autose/issue-1",
+  "history": [
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 1,
+      "ok": false,
+      "summary": "2 blocking question(s) need a maintainer's answer",
+      "seconds": 115.8,
+      "steps": 1,
+      "prompt_tokens": 7422,
+      "completion_tokens": 3833,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 2,
+      "ok": true,
+      "summary": "7 testable ACs",
+      "seconds": 93.2,
+      "steps": 1,
+      "prompt_tokens": 7686,
+      "completion_tokens": 3595,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 1,
+      "ok": false,
+      "summary": "no ```json block with a non-empty 'files' list",
+      "seconds": 420.7,
+      "steps": 26,
+      "prompt_tokens": 138426,
+      "completion_tokens": 11838,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 2,
+      "ok": true,
+      "summary": "files: tinydb/table.py",
+      "seconds": 237.7,
+      "steps": 26,
+      "prompt_tokens": 128496,
+      "completion_tokens": 7755,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "implement",
+      "attempt": 1,
+      "ok": true,
+      "summary": "build ok",
+      "seconds": 395.3,
+      "steps": 41,
+      "prompt_tokens": 272401,
+      "completion_tokens": 13911,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 37,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "test",
+      "attempt": 1,
+      "ok": false,
+      "summary": "TEST-SIDE mypy errors (CI type-checks tests too):\ntests/test_autose_issue_1.py:85: error: List item 1 has incompatible type \"InvalidDoc\"; expected \"Mapping[Any, Any]\"  [list-item]\nFound 1 error in 1 file (checked 11 source files)\n",
+      "seconds": 268.7,
+      "steps": 31,
+      "prompt_tokens": 241184,
+      "completion_tokens": 8372,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 28,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "implement",
+      "attempt": 2,
+      "ok": true,
+      "summary": "build ok",
+      "seconds": 90.3,
+      "steps": 12,
+      "prompt_tokens": 52454,
+      "completion_tokens": 2085,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 11,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "test",
+      "attempt": 2,
+      "ok": false,
+      "summary": "TEST-SIDE mypy errors (CI type-checks tests too):\ntests/test_autose_issue_1.py:87: error: Invalid \"type: ignore\" comment  [syntax]\ntests/test_autose_issue_1.py:88: error: List item 1 has incompatible type \"InvalidDoc\"; expected \"Mapping[Any, Any]\"  [list-item]\ntests/test_autose_issue_1.py:149: error: Module \"tinydb.operations\" has no attribute \"multiply\"  [attr-defined]\ntests/test_autose_issue_1.py:149: error: Module \"tinydb.operations\" has no attribute \"divide\"  [attr-defined]\ntests/test_autose_issue_1.py:186: error: Value of type \"Document | None\" is not indexable  [index]\nFound 5 errors in 1 file (checked 11 source files)\n; full suite failed: 2 failing test(s)",
+      "seconds": 186.6,
+      "steps": 31,
+      "prompt_tokens": 188232,
+      "completion_tokens": 7003,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 29,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 1,
+      "ok": false,
+      "summary": "no ```json block with a non-empty 'files' list",
+      "seconds": 297.7,
+      "steps": 26,
+      "prompt_tokens": 186370,
+      "completion_tokens": 10750,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 2,
+      "ok": false,
+      "summary": "no ```json block with a non-empty 'files' list",
+      "seconds": 433.4,
+      "steps": 26,
+      "prompt_tokens": 193203,
+      "completion_tokens": 18708,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    }
+  ],
+  "tokens": {
+    "prompt": 1415874,
+    "completion": 87850
+  },
+  "review_round": 0,
+  "outcome": "stopped: design check failed: no ```json block with a non-empty 'files' list",
+  "budget": {
+    "limit": 2500000,
+    "used": 1503724
+  }
+}

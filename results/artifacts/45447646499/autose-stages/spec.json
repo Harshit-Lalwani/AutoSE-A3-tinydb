@@ -1,0 +1,78 @@
+{
+  "summary": "Make MemoryStorage (and all storages) atomic for update/remove/insert_multiple so a failing write leaves data unchanged, and keep query cache consistent with stored data after any write.",
+  "issue_type": "bug",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.update(delete('tmp')) is called and raises KeyError",
+      "then": "db.all() returns [{'name': 'a', 'tmp': 1}, {'name': 'b'}] (unchanged) and the KeyError propagates"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with JSONStorage (temp file) containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.update(delete('tmp')) is called and raises KeyError",
+      "then": "db.all() returns [{'name': 'a', 'tmp': 1}, {'name': 'b'}] (unchanged) and the JSON file content is unchanged"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-2",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.remove(Query().tmp.exists()) is called and raises KeyError (if it does) or any exception during the operation",
+      "then": "db.all() returns the original data unchanged and the exception propagates"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-3",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a'}]",
+      "when": "db.insert_multiple([{'name': 'b'}, {'invalid': 'doc'}]) raises an exception (e.g. validation error if added, or simulate failure on second doc)",
+      "then": "db.all() returns [{'name': 'a'}] (unchanged) and the exception propagates"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-4",
+      "given": "a TinyDB instance with MemoryStorage and default cache_size containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.search(Query().tmp.exists()) is called, then db.update(delete('tmp')) raises KeyError",
+      "then": "a subsequent db.search(Query().tmp.exists()) returns [{'name': 'a', 'tmp': 1}] (reflecting unchanged stored data) without calling db.clear_cache()"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-4",
+      "given": "a TinyDB instance with MemoryStorage and default cache_size containing [{'name': 'a', 'tmp': 1}]",
+      "when": "db.search(Query().tmp.exists()) is called, then db.update(set('tmp', 2)) succeeds",
+      "then": "a subsequent db.search(Query().tmp.exists()) returns [{'name': 'a', 'tmp': 2}] (reflecting updated stored data) without calling db.clear_cache()"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "NFR-1",
+      "given": "the fixed TinyDB codebase",
+      "when": "import tinydb; from tinydb import TinyDB, Query, Table; from tinydb.storages import Storage, JSONStorage, MemoryStorage; from tinydb.middlewares import Middleware",
+      "then": "all public classes and methods exist with the same signatures as before the fix (no API removals or signature changes)"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "Maintainer considers the half-modified MemoryStorage behaviour a bug",
+      "default_used": "Yes, it is a bug (issue frames it as unexpected and inconsistent with JSONStorage)"
+    },
+    {
+      "id": "A-2",
+      "assumption": "Atomicity is achieved by copying data before mutation and restoring on exception",
+      "default_used": "Copy-on-write / transaction-style rollback in Table._write or Storage.write"
+    },
+    {
+      "id": "A-3",
+      "assumption": "Cache invalidation happens in Table after Storage.write succeeds (or is skipped on failure)",
+      "default_used": "Invalidate _cache in Table after successful write"
+    },
+    {
+      "id": "A-4",
+      "assumption": "JSONStorage already satisfies atomicity and cache consistency",
+      "default_used": "Yes, no change to JSONStorage"
+    }
+  ],
+  "blocking_questions": []
+}

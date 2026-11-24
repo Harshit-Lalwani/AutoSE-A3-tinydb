@@ -1,0 +1,169 @@
+{
+  "summary": "Add optional sort_by, limit, and offset parameters to Table.search() and Table.all() for server-side ordering and paging of query results.",
+  "issue_type": "feature",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a table with documents [{'name': 'Bob', 'age': 30}, {'name': 'Alice', 'age': 25}, {'name': 'Alice', 'age': 35}]",
+      "when": "calling table.search(Query().name.exists(), sort_by=['name', 'age'])",
+      "then": "the returned list equals [{'name': 'Alice', 'age': 25}, {'name': 'Alice', 'age': 35}, {'name': 'Bob', 'age': 30}]"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-1",
+      "given": "a table with documents [{'name': 'Bob', 'age': 30}, {'name': 'Alice', 'age': 25}]",
+      "when": "calling table.search(Query().name.exists(), sort_by=['-name'])",
+      "then": "the returned list equals [{'name': 'Bob', 'age': 30}, {'name': 'Alice', 'age': 25}]"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-1",
+      "given": "a table with documents [{'name': 'Bob'}, {'name': 'Alice', 'age': 25}]",
+      "when": "calling table.search(Query().name.exists(), sort_by=['age'])",
+      "then": "the returned list equals [{'name': 'Bob'}, {'name': 'Alice', 'age': 25}] (missing field treated as None, sorts first)"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-1",
+      "given": "a table with documents [{'name': 'Bob', 'age': 30}, {'name': 'Alice', 'age': 25}]",
+      "when": "calling table.all(sort_by=['name'])",
+      "then": "the returned list equals [{'name': 'Alice', 'age': 25}, {'name': 'Bob', 'age': 30}]"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-1",
+      "given": "a table with documents [{'name': 'Bob', 'age': 30}, {'name': 'Alice', 'age': 25}]",
+      "when": "calling table.search(Query().name.exists(), sort_by='name')",
+      "then": "TypeError is raised (sort_by must be a list)"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-2",
+      "given": "a table with 5 documents",
+      "when": "calling table.all(limit=2, offset=1)",
+      "then": "the returned list contains exactly 2 documents (the 2nd and 3rd in storage order)"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "FR-2",
+      "given": "a table with 3 documents",
+      "when": "calling table.all(limit=10)",
+      "then": "the returned list contains all 3 documents (limit larger than result set)"
+    },
+    {
+      "id": "AC-8",
+      "requirement": "FR-2",
+      "given": "a table with 3 documents",
+      "when": "calling table.all(offset=5)",
+      "then": "the returned list is empty (offset beyond result set)"
+    },
+    {
+      "id": "AC-9",
+      "requirement": "FR-2",
+      "given": "a table with documents [{'name': 'Bob', 'age': 30}, {'name': 'Alice', 'age': 25}, {'name': 'Carol', 'age': 35}]",
+      "when": "calling table.search(Query().name.exists(), sort_by=['age'], limit=2, offset=1)",
+      "then": "the returned list equals [{'name': 'Bob', 'age': 30}, {'name': 'Carol', 'age': 35}] (sort applied before paging)"
+    },
+    {
+      "id": "AC-10",
+      "requirement": "FR-2",
+      "given": "a table with 3 documents",
+      "when": "calling table.all(limit=None, offset=0)",
+      "then": "the returned list contains all 3 documents (explicit defaults behave like no paging)"
+    },
+    {
+      "id": "AC-11",
+      "requirement": "FR-3",
+      "given": "a table with documents",
+      "when": "calling table.search(Query().name.exists(), sort_by='name')",
+      "then": "TypeError is raised with message indicating sort_by must be a list"
+    },
+    {
+      "id": "AC-12",
+      "requirement": "FR-3",
+      "given": "a table with documents",
+      "when": "calling table.all(limit='two')",
+      "then": "TypeError is raised with message indicating limit must be an integer or None"
+    },
+    {
+      "id": "AC-13",
+      "requirement": "FR-3",
+      "given": "a table with documents",
+      "when": "calling table.all(offset=1.5)",
+      "then": "TypeError is raised with message indicating offset must be an integer"
+    },
+    {
+      "id": "AC-14",
+      "requirement": "FR-4",
+      "given": "a table with documents",
+      "when": "calling table.all(limit=-1)",
+      "then": "ValueError is raised with message indicating limit must be non-negative"
+    },
+    {
+      "id": "AC-15",
+      "requirement": "FR-4",
+      "given": "a table with documents",
+      "when": "calling table.all(offset=-1)",
+      "then": "ValueError is raised with message indicating offset must be non-negative"
+    },
+    {
+      "id": "AC-16",
+      "requirement": "FR-5",
+      "given": "a table with documents [{'name': 'Bob', 'age': 30}, {'name': 'Alice', 'age': 25}, {'name': 'Carol', 'age': 35}]",
+      "when": "calling table.search(Query().name.exists(), sort_by=['-age'], limit=2)",
+      "then": "the returned list equals [{'name': 'Carol', 'age': 35}, {'name': 'Bob', 'age': 30}] (sorted descending by age, then limited)"
+    },
+    {
+      "id": "AC-17",
+      "requirement": "FR-6",
+      "given": "a table with documents [{'name': 'Bob'}, {'name': 'Alice'}]",
+      "when": "calling table.search(Query().name.exists()) and table.all()",
+      "then": "both return [{'name': 'Bob'}, {'name': 'Alice'}] in storage order (unchanged behaviour)"
+    },
+    {
+      "id": "AC-18",
+      "requirement": "NFR-1",
+      "given": "the modified codebase",
+      "when": "running the test suite with coverage",
+      "then": "coverage remains 100%"
+    },
+    {
+      "id": "AC-19",
+      "requirement": "NFR-2",
+      "given": "the modified codebase",
+      "when": "inspecting setup.py / pyproject.toml and import statements",
+      "then": "no new external dependencies are declared or imported"
+    },
+    {
+      "id": "AC-20",
+      "requirement": "NFR-3",
+      "given": "the modified codebase",
+      "when": "running the test suite on Python 3.8, 3.9, 3.10, 3.11, 3.12, 3.13 and PyPy3",
+      "then": "all tests pass"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "sort_by parameter format: list of strings, '-' prefix for descending (e.g., sort_by=['name', '-created_at'])",
+      "default_used": "List of strings with '-' prefix for desc"
+    },
+    {
+      "id": "A-2",
+      "assumption": "Paging parameters: limit (int or None) and offset (int, default 0). No page/page_size parameters.",
+      "default_used": "limit and offset only"
+    },
+    {
+      "id": "A-3",
+      "assumption": "Sorting uses Python's default comparison; missing fields treated as None; mixed comparable types raise TypeError during sort.",
+      "default_used": "Python list.sort() semantics with missing -> None"
+    },
+    {
+      "id": "A-4",
+      "assumption": "Stable sort; documents with equal sort keys retain their relative order from the unsorted result.",
+      "default_used": "Python's stable sort guarantee"
+    }
+  ],
+  "blocking_questions": []
+}

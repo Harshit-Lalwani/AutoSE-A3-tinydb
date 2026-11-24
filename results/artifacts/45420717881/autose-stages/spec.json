@@ -1,0 +1,54 @@
+{
+  "summary": "Make MemoryStorage atomic like JSONStorage: any exception during update/remove/insert_multiple (and Table equivalents) rolls back in-memory changes and invalidates the query cache.",
+  "issue_type": "bug",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.update(delete('tmp')) is called and raises KeyError",
+      "then": "db.all() returns [{'name': 'a', 'tmp': 1}, {'name': 'b'}] (unchanged)"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-2",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a', 'tmp': 1}, {'name': 'b'}]",
+      "when": "db.remove(Query().tmp.exists()) is called and the user-supplied condition raises an exception (e.g. a custom test function that raises)",
+      "then": "db.all() returns the original two documents unchanged"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-3",
+      "given": "a TinyDB instance with MemoryStorage containing [{'name': 'a'}]",
+      "when": "db.insert_multiple([{'name': 'b'}, {'invalid': 'doc'}]) is called and the second document causes an exception during insertion (e.g. a storage-level validation error)",
+      "then": "db.all() returns only [{'name': 'a'}] (no partial insert)"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-4",
+      "given": "a TinyDB instance with MemoryStorage where db.search(Query().tmp.exists()) returned [{'name': 'a', 'tmp': 1}] and the cache is populated",
+      "when": "db.update(delete('tmp')) is called and raises KeyError",
+      "then": "a subsequent db.search(Query().tmp.exists()) returns [] (cache invalidated, matches rolled-back data)"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "NFR-1",
+      "given": "the same test sequence as AC-1 run against a TinyDB instance with JSONStorage (file-backed)",
+      "when": "db.update(delete('tmp')) raises KeyError",
+      "then": "the JSON file on disk is unchanged and db.all() returns the original data"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "\"remove / insert_multiple\" in the issue refers to TinyDB.remove(), TinyDB.insert_multiple() and their Table equivalents.",
+      "default_used": "standard TinyDB public API"
+    },
+    {
+      "id": "A-2",
+      "assumption": "Any exception raised during a write operation triggers rollback and cache invalidation.",
+      "default_used": "all exceptions"
+    }
+  ],
+  "blocking_questions": []
+}

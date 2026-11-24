@@ -1,0 +1,103 @@
+{
+  "issue": 4,
+  "variant": "single",
+  "branch": "autose/issue-4-single",
+  "history": [
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 1,
+      "ok": false,
+      "summary": "2 blocking question(s) need a maintainer's answer",
+      "seconds": 98.9,
+      "steps": 1,
+      "prompt_tokens": 7305,
+      "completion_tokens": 4718,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 2,
+      "ok": true,
+      "summary": "7 testable ACs",
+      "seconds": 146.7,
+      "steps": 1,
+      "prompt_tokens": 7568,
+      "completion_tokens": 4915,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 1,
+      "ok": true,
+      "summary": "files: tinydb/operations.py",
+      "seconds": 151.6,
+      "steps": 18,
+      "prompt_tokens": 144578,
+      "completion_tokens": 4173,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 17,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "implement",
+      "attempt": 1,
+      "ok": true,
+      "summary": "build ok",
+      "seconds": 110.5,
+      "steps": 15,
+      "prompt_tokens": 97277,
+      "completion_tokens": 3843,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 11,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "test",
+      "attempt": 1,
+      "ok": true,
+      "summary": "all tests pass",
+      "seconds": 3.1
+    },
+    {
+      "job": "stages",
+      "stage": "release",
+      "attempt": 1,
+      "ok": false,
+      "summary": "PR https://github.com/Harshit-Lalwani/AutoSE-A3-tinydb/pull/15, CI failure",
+      "seconds": 47.9
+    }
+  ],
+  "tokens": {
+    "prompt": 256728,
+    "completion": 17649
+  },
+  "review_round": 0,
+  "pr": "https://github.com/Harshit-Lalwani/AutoSE-A3-tinydb/pull/15",
+  "ci": {
+    "run": "https://github.com/Harshit-Lalwani/AutoSE-A3-tinydb/actions/runs/45428324425",
+    "conclusion": "failure",
+    "sha": "812fd0b04913ef61fa960f57f7acf3f6937e115b"
+  },
+  "outcome": "stopped: CI failure: https://github.com/Harshit-Lalwani/AutoSE-A3-tinydb/actions/runs/45428324425",
+  "budget": {
+    "limit": 2500000,
+    "used": 274377
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "summary": "Make Table.update() and Table.remove() accept document IDs as strings (parsable by int()) like get()/contains() do, converting them to integers internally; invalid strings raise ValueError; non-existent IDs are skipped; return type remains List[int].",
+  "issue_type": "bug",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "requirement": "FR-1",
+      "given": "a TinyDB table with documents having doc_ids 1, 2, 3",
+      "when": "calling table.update({'a': 10}, doc_ids=['1', '2'])",
+      "then": "the call returns [1, 2] and documents 1 and 2 have {'a': 10}"
+    },
+    {
+      "id": "AC-2",
+      "requirement": "FR-2",
+      "given": "a TinyDB table with a document having doc_id 5",
+      "when": "calling table.update({'b': 20}, doc_id='5')",
+      "then": "the call returns [5] and document 5 has {'b': 20}"
+    },
+    {
+      "id": "AC-3",
+      "requirement": "FR-1",
+      "given": "a TinyDB table with documents having doc_ids 1, 2, 3",
+      "when": "calling table.update({'x': 1}, doc_ids=['1', '99', '2']) where 99 does not exist",
+      "then": "the call returns [1, 2] (skipping non-existent 99) and documents 1 and 2 are updated"
+    },
+    {
+      "id": "AC-4",
+      "requirement": "FR-1",
+      "given": "a TinyDB table with documents having doc_ids 1, 2, 3",
+      "when": "calling table.update({'x': 1}, doc_ids=['99', '100']) where neither exists",
+      "then": "the call returns [] and no documents are modified"
+    },
+    {
+      "id": "AC-5",
+      "requirement": "FR-3",
+      "given": "a TinyDB table with documents having doc_ids 1, 2, 3",
+      "when": "calling table.remove(doc_ids=['2', '3'])",
+      "then": "the call returns [2, 3] and documents 2 and 3 are removed"
+    },
+    {
+      "id": "AC-6",
+      "requirement": "FR-4",
+      "given": "a TinyDB table with a document having doc_id 7",
+      "when": "calling table.remove(doc_id='7')",
+      "then": "the call returns [7] and document 7 is removed"
+    },
+    {
+      "id": "AC-7",
+      "requirement": "FR-3",
+      "given": "a TinyDB table with documents having doc_ids 1, 2, 3",
+      "when": "calling table.remove(doc_ids=['2', '99', '3']) where 99 does not exist",
+      "then": "the call returns [2, 3] (skipping non-existent 99) and documents 2 and 3 are removed"
+    },
+    {
+      "id": "AC-8",
+      "requirement": "FR-3",
+      "given": "a TinyDB table with documents having doc_ids 1, 2, 3",
+      "when": "calling table.remove(doc_ids=['99', '100']) where neither exists",
+      "then": "the call returns [] and no documents are removed"
+    },
+    {
+      "id": "AC-9",
+      "requirement": "FR-5",
+      "given": "a TinyDB table with any documents",
+      "when": "calling table.update({'x': 1}, doc_ids=['abc']) or table.update({'x': 1}, doc_id='1.5')",
+      "then": "ValueError is raised and no documents are modified"
+    },
+    {
+      "id": "AC-10",
+      "requirement": "FR-5",
+      "given": "a TinyDB table with any documents",
+      "when": "calling table.remove(doc_ids=['0x10']) or table.remove(doc_id='1_000')",
+      "then": "ValueError is raised and no documents are removed"
+    },
+    {
+      "id": "AC-11",
+      "requirement": "FR-7",
+      "given": "a TinyDB table with documents having doc_ids 1, 2",
+      "when": "calling table.get(doc_ids=['1', '2']) and table.contains(doc_id='2')",
+      "then": "get returns the two documents and contains returns True (behaviour unchanged)"
+    },
+    {
+      "id": "AC-12",
+      "requirement": "FR-7",
+      "given": "a TinyDB table with a document having doc_id 5",
+      "when": "calling table.get(doc_id='5')",
+      "then": "returns the document (behaviour unchanged)"
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A-1",
+      "assumption": "String IDs accepted are exactly those that int(s) parses without error (base-10, optional leading +/-, no underscores, no 0x prefix). This matches Python's int() default behaviour and is the conservative interpretation of 'same way get() does'.",
+      "default_used": "Accept int(s)-parsable strings; raise ValueError otherwise"
+    }
+  ],
+  "blocking_questions": []
+}

@@ -1,0 +1,76 @@
+{
+  "verdict": "approve",
+  "category": "none",
+  "requirements": [
+    {
+      "requirement": "Provide an `append` operation in `tinydb.operations` following the factory style of existing operations",
+      "verified_by": "read tinydb/operations.py; `python -c \"import tinydb.operations as o; print(dir(o))\"` shows append exported; `python -m mypy tinydb/operations.py` -> Success",
+      "ok": true
+    },
+    {
+      "requirement": "Append the value to the list field of every document matching the query",
+      "verified_by": "python probe: db.update(append('tags','u'), Query().p=='x') -> [{'p':'x','tags':['a','u']},{'p':'x','tags':['u']},{'p':'y'}]",
+      "ok": true
+    },
+    {
+      "requirement": "Create the field as a one-element list when it is missing",
+      "verified_by": "python probe: doc {'p':'x'} -> {'p':'x','tags':['u']}",
+      "ok": true
+    },
+    {
+      "requirement": "Raise TypeError when the field exists but is not a list",
+      "verified_by": "python probe: field 'tags'='no' -> TypeError: field 'tags' is not a list; tuple field also raises TypeError",
+      "ok": true
+    },
+    {
+      "requirement": "No regressions / architecture constraints C1-C5 respected",
+      "verified_by": "`python -m pytest -q -p no:cacheprovider` -> 230 passed; operations.py imports only stdlib (no table/database import, no new dependency)",
+      "ok": true
+    }
+  ],
+  "findings": [
+    {
+      "severity": "minor",
+      "file": "docs/usage.rst",
+      "line": 317,
+      "problem": "The list of built-in update operations in the user documentation was not extended with `append(key, value)`.",
+      "evidence": "docs/usage.rst lines 310-317 enumerate delete/increment/decrement/add/subtract/set but not append."
+    },
+    {
+      "severity": "minor",
+      "file": "tinydb/operations.py",
+      "line": 84,
+      "problem": "If one matching document has a non-list field, earlier matching documents are already appended to before the TypeError propagates (partial update).",
+      "evidence": "Probe output: 'TypeError raised: field 'tags' is not a list' with state after failure [{'p':'x','tags':['a','u']},{'p':'x','tags':'bad'}]. The same partial-update semantics already apply to the existing `add` operation (probe: 'add partial: can only concatenate str (not \"int\") to str' with [{'n':2},{'n':'bad'}]), so this is inherited Table.update behavior rather than a PR-specific defect."
+    }
+  ],
+  "summary": "The append operation correctly implements all issue requirements (create-if-missing, append to lists, TypeError for non-lists), passes the full suite and my own probes, and respects the architecture constraints; only a minor docs omission remains.",
+  "pr": 10,
+  "issue": null,
+  "round": 0,
+  "variant": "informed",
+  "models": [
+    "nim:minimaxai/minimax-m3.1-flash"
+  ],
+  "commands": [
+    "ls && cat ARCHITECTURE.md && cat tinydb/operations.py",
+    "git log --oneline -5 && git diff main...HEAD --stat && git status",
+    "git show --stat HEAD && git show HEAD -- tinydb/operations.py tests/test_append_operation.py && git branch -a",
+    "grep -n \"C1\\|C2\\|C3\\|C4\\|C5\" ARCHITECTURE.md | head -30; grep -rn \"operations\" docs README.rst | head -30",
+    "python -m pytest -q -p no:cacheprovider 2>&1 | tail -20",
+    "sed -n 290,345p docs/usage.rst; sed -n 1,60p tinydb/table.py; grep -n \"def update\" -A 40 tinydb/table.py",
+    "python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.operations import append\nfrom tinydb.storages import MemoryStorage\n\n# Edge case 1: one matching doc has non-list -> partial update?\ndb = TinyDB(storage=MemoryStorage)\ndb.insert_multiple([{'p':'x','tags':['a']}, {'p':'x','tags':'bad'}])\ntry:\n    db.update(append('tags','u'), Query().p=='x')\nexcept TypeError as e:\n    print('TypeError raised:', e)\nprint('state after failure:', db.all())\n\n# Edge case 2: tuple field\ndb2 = TinyDB(storage=MemoryStorage)\ndb2.insert({'tags': ('a',)})\ntry:\n    db2.update(append('tags','u'))\nexcept TypeError as e:\n    print('tuple -> TypeError:', e)\n\n# Edge case 3: missing field creation\ndb3 = TinyDB(storage=MemoryStorage)\ndb3.insert({'p':'x'})\ndb3.update(append('tags','u'), Query().p=='x')\nprint('missing field:', db3.all())\n\n# Edge case 4: value itself a list\ndb4 = TinyDB(storage=MemoryStorage)\ndb4.insert({'tags':['a']})\ndb4.update(append('tags',['b','c']))\nprint('list value:', db4.all())\nEOF",
+    "grep -rn \"operations\" tinydb/__init__.py; grep -rn \"append\" docs/ | head; grep -rn \"def update\" -A 60 tinydb/table.py | sed -n '1,120p'",
+    "python - <<'EOF'\nfrom tinydb import TinyDB\nfrom tinydb.operations import add\nfrom tinydb.storages import MemoryStorage\ndb = TinyDB(storage=MemoryStorage)\ndb.insert_multiple([{'n':1},{'n':'bad'}])\ntry:\n    db.update(add('n', 1))\nexcept TypeError as e:\n    print('add partial:', e)\nprint(db.all())\nEOF",
+    "grep -rn \"operations\" tinydb/*.py | grep import; python -c \"\nimport tinydb.operations as o\nprint([n for n in dir(o) if not n.startswith('_')])\n\"; grep -rn \"append\" tests/ | head",
+    "grep -rn \"operations\" tinydb/__init__.py tinydb/operations.py | head; grep -rn \"set(key, value)\\|subtract(key\" docs/usage.rst; grep -rn \"mypy\\|pyright\" pyproject.toml | head",
+    "python -m mypy tinydb/operations.py 2>&1 | tail -5; python -m flake8 tinydb/operations.py tests/test_append_operation.py 2>&1 | tail -10",
+    "python - <<'EOF'\nfrom tinydb import TinyDB, Query\nfrom tinydb.operations import append\nfrom tinydb.storages import MemoryStorage\ndb = TinyDB(storage=MemoryStorage)\ndb.insert_multiple([{'p':'x'},{'p':'y'}])\nprint(db.update_multiple([(append('tags','u'), Query().p=='x')]))\nprint(db.all())\nprint(db.update(append('tags','v'), doc_ids=[2]))\nprint(db.all())\nEOF"
+  ],
+  "steps": 8,
+  "prompt_tokens": 71300,
+  "completion_tokens": 2293,
+  "sha": "49553f0e5f6be4ec2532e107bd12e97352b27ced",
+  "budget_used": 73593,
+  "budget_limit": 400000
+}

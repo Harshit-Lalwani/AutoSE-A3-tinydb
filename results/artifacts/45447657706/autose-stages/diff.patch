@@ -1,0 +1,34 @@
+diff --git a/tinydb/operations.py b/tinydb/operations.py
+index 3f6c6ab..ca18a37 100644
+--- a/tinydb/operations.py
++++ b/tinydb/operations.py
+@@ -73,3 +73,28 @@ def decrement(field: str) -> Callable[[MutableMapping], None]:
+         doc[field] -= 1
+ 
+     return transform
++
++
++class append:
++    """
++    Append a value to a list field in the document.
++
++    If the field does not exist, it will be created as a single-element list.
++    If the field exists but is not a list, a TypeError is raised.
++
++    Example:
++        >>> db.update(append('tags', 'urgent'), Query().tags.exists())
++    """
++
++    def __init__(self, field: str, value: Any):
++        self.field = field
++        self.value = value
++
++    def __call__(self, doc: MutableMapping) -> MutableMapping:
++        if self.field not in doc:
++            doc[self.field] = [self.value]
++        elif isinstance(doc[self.field], list):
++            doc[self.field].append(self.value)
++        else:
++            raise TypeError(f"Field '{self.field}' is not a list")
++        return doc
+\ No newline at end of file

@@ -1,0 +1,77 @@
+{
+  "issue": 4,
+  "variant": "default",
+  "branch": "autose/issue-4",
+  "history": [
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 1,
+      "ok": false,
+      "summary": "2 blocking question(s) need a maintainer's answer",
+      "seconds": 111.8,
+      "steps": 1,
+      "prompt_tokens": 7305,
+      "completion_tokens": 3745,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 2,
+      "ok": true,
+      "summary": "9 testable ACs",
+      "seconds": 90.3,
+      "steps": 1,
+      "prompt_tokens": 7563,
+      "completion_tokens": 3823,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 1,
+      "ok": false,
+      "summary": "no ```json block with a non-empty 'files' list",
+      "seconds": 235.6,
+      "steps": 26,
+      "prompt_tokens": 259336,
+      "completion_tokens": 5368,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 2,
+      "ok": false,
+      "summary": "tinydb/operations.py: symbol 'append' not found (mark it under 'new_symbols' if it is new)",
+      "seconds": 211.6,
+      "steps": 26,
+      "prompt_tokens": 280095,
+      "completion_tokens": 5090,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 25,
+      "stopped": "budget"
+    }
+  ],
+  "tokens": {
+    "prompt": 554299,
+    "completion": 18026
+  },
+  "review_round": 0,
+  "outcome": "stopped: design check failed: tinydb/operations.py: symbol 'append' not found (mark it under 'new_symbols' if it is new)"
+}

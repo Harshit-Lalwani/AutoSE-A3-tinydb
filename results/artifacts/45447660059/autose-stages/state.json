@@ -1,0 +1,105 @@
+{
+  "issue": 5,
+  "variant": "default",
+  "branch": "autose/issue-5",
+  "history": [
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 1,
+      "ok": false,
+      "summary": "2 blocking question(s) need a maintainer's answer",
+      "seconds": 115.7,
+      "steps": 1,
+      "prompt_tokens": 7216,
+      "completion_tokens": 4983,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 2,
+      "ok": true,
+      "summary": "20 testable ACs",
+      "seconds": 127.0,
+      "steps": 1,
+      "prompt_tokens": 7492,
+      "completion_tokens": 5472,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "design",
+      "attempt": 1,
+      "ok": true,
+      "summary": "files: tinydb/table.py",
+      "seconds": 114.3,
+      "steps": 12,
+      "prompt_tokens": 110782,
+      "completion_tokens": 4198,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 11,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "implement",
+      "attempt": 1,
+      "ok": false,
+      "summary": "build failed",
+      "seconds": 515.1,
+      "steps": 41,
+      "prompt_tokens": 1125079,
+      "completion_tokens": 23383,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 35,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "implement",
+      "attempt": 2,
+      "ok": true,
+      "summary": "build ok",
+      "seconds": 461.6,
+      "steps": 41,
+      "prompt_tokens": 1026979,
+      "completion_tokens": 21664,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 37,
+      "stopped": "budget"
+    },
+    {
+      "job": "stages",
+      "stage": "test",
+      "attempt": 1,
+      "ok": false,
+      "summary": "token budget exhausted: used 2,473,849 of 2,500,000, next call could need up to 31,792",
+      "seconds": null
+    }
+  ],
+  "tokens": {
+    "prompt": 2277548,
+    "completion": 59700
+  },
+  "review_round": 0,
+  "outcome": "stopped: token budget exhausted: used 2,473,849 of 2,500,000, next call could need up to 31,792",
+  "budget": {
+    "limit": 2500000,
+    "used": 2473849
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "issue": 5,
+  "variant": "default",
+  "branch": "autose/issue-5",
+  "history": [
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 1,
+      "ok": false,
+      "summary": "3 blocking question(s) need a maintainer's answer",
+      "seconds": 135.2,
+      "steps": 1,
+      "prompt_tokens": 7216,
+      "completion_tokens": 4313,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    },
+    {
+      "job": "stages",
+      "stage": "spec",
+      "attempt": 2,
+      "ok": false,
+      "summary": "1 blocking question(s) need a maintainer's answer",
+      "seconds": 184.6,
+      "steps": 1,
+      "prompt_tokens": 7556,
+      "completion_tokens": 6974,
+      "models": [
+        "nim:nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "commands": 0,
+      "stopped": "finished"
+    }
+  ],
+  "tokens": {
+    "prompt": 14772,
+    "completion": 11287
+  },
+  "review_round": 0,
+  "outcome": "stopped: spec check failed: 1 blocking question(s) need a maintainer's answer",
+  "budget": {
+    "limit": 2500000,
+    "used": 26059
+  }
+}

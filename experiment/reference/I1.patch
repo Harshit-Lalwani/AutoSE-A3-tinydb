@@ -1,0 +1,13 @@
+diff --git a/tinydb/table.py b/tinydb/table.py
+index 76470aa..a380014 100644
+--- a/tinydb/table.py
++++ b/tinydb/table.py
+@@ -832,7 +832,7 @@ class Table:
+         # to be an instance of ``self.document_id_class`` but the storage
+         # might convert dict keys to strings.
+         table = {
+-            self.document_id_class(doc_id): doc
++            self.document_id_class(doc_id): dict(doc)
+             for doc_id, doc in raw_table.items()
+         }
+ 

@@ -1,0 +1,12 @@
+{
+  "files": [
+    {
+      "path": "tinydb/queries.py",
+      "new": false,
+      "symbols": [],
+      "new_symbols": [
+        "Query.between"
+      ]
+    }
+  ]
+}

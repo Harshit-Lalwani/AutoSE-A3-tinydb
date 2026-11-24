@@ -1,0 +1,27 @@
+sequenceDiagram
+  autonumber
+  actor M as Maintainer
+  participant GH as GitHub
+  participant O as stages job
+  participant A as agents
+  participant R as review job
+  M->>GH: /autose on issue 4
+  GH->>O: gate ok
+  O->>A: spec x2 (8 ACs)
+  O->>A: design: operations.py
+  O->>A: coder, build ok
+  O->>A: tester: 8 AC tests ok
+  O->>GH: PR 20 + CI green
+  GH->>R: round 1 (35 cmds)
+  R-->>GH: changes: shared list
+  R->>O: fix_1 (resume)
+  O->>A: coder + tester ok
+  O->>GH: push, CI green
+  GH->>R: round 2 (37 cmds)
+  R-->>GH: changes: test too narrow
+  R->>O: fix_2 (resume)
+  O->>A: coder + tester ok
+  O->>GH: push, CI green
+  GH->>R: round 3 (last)
+  R-->>GH: job failed, no verdict
+  GH-->>M: maintainer decides
