@@ -1,0 +1,123 @@
+"""
+Tests for atomic MemoryStorage writes and query cache consistency.
+These tests verify the acceptance criteria from the issue.
+"""
+
+import pytest
+from tinydb import TinyDB, Query
+from tinydb.operations import delete
+from tinydb.storages import MemoryStorage
+
+
+class TestMemoryStorageAtomicWrites:
+    """Test that MemoryStorage writes are atomic (all-or-nothing)."""
+
+    def test_ac1_update_delete_raises_keyerror_unchanged(self):
+        """
+        AC-1: GIVEN a TinyDB instance with MemoryStorage containing
+        [{'name': 'a', 'tmp': 1}, {'name': 'b'}]
+        WHEN db.update(delete('tmp')) is called and raises KeyError
+        THEN db.all() returns [{'name': 'a', 'tmp': 1}, {'name': 'b'}] (unchanged)
+        """
+        db = TinyDB(storage=MemoryStorage)
+        db.insert_multiple([{'name': 'a', 'tmp': 1}, {'name': 'b'}])
+
+        # delete('tmp') will raise KeyError on the second document (no 'tmp' key)
+        with pytest.raises(KeyError):
+            db.update(delete('tmp'))
+
+        # Data should be unchanged
+        assert db.all() == [{'name': 'a', 'tmp': 1}, {'name': 'b'}]
+
+    def test_ac2_remove_with_failing_updater_unchanged(self):
+        """
+        AC-2: GIVEN a TinyDB instance with MemoryStorage containing
+        [{'name': 'a', 'tmp': 1}, {'name': 'b'}]
+        WHEN db.update() with a custom updater that raises KeyError
+        on the second document
+        THEN db.all() returns the original two documents (unchanged)
+        """
+        db = TinyDB(storage=MemoryStorage)
+        db.insert_multiple([{'name': 'a', 'tmp': 1}, {'name': 'b'}])
+
+        # Custom updater that raises KeyError on document without 'tmp'
+        def failing_updater(doc):
+            if 'tmp' not in doc:
+                raise KeyError("'tmp'")
+            del doc['tmp']
+
+        with pytest.raises(KeyError):
+            db.update(failing_updater)
+
+        # Data should be unchanged
+        assert db.all() == [{'name': 'a', 'tmp': 1}, {'name': 'b'}]
+
+    def test_ac3_query_cache_consistent_after_failed_update(self):
+        """
+        AC-3: GIVEN a TinyDB instance with MemoryStorage containing
+        [{'name': 'a', 'tmp': 1}, {'name': 'b'}] and a prior search
+        db.search(Query().tmp.exists()) that returned [{'name': 'a', 'tmp': 1}]
+        WHEN db.update(delete('tmp')) is called and raises KeyError
+        THEN db.search(Query().tmp.exists()) returns [{'name': 'a', 'tmp': 1}]
+        (cache reflects pre-failure state)
+        """
+        db = TinyDB(storage=MemoryStorage)
+        db.insert_multiple([{'name': 'a', 'tmp': 1}, {'name': 'b'}])
+
+        # Perform a search to populate the query cache
+        results = db.search(Query().tmp.exists())
+        assert results == [{'name': 'a', 'tmp': 1}]
+
+        # Now try an update that will fail
+        with pytest.raises(KeyError):
+            db.update(delete('tmp'))
+
+        # Cache should still reflect pre-failure state
+        cached_results = db.search(Query().tmp.exists())
+        assert cached_results == [{'name': 'a', 'tmp': 1}]
+
+    def test_ac4_successful_update_reflects_change(self):
+        """
+        AC-4: GIVEN a TinyDB instance with MemoryStorage containing [{'name': 'a'}]
+        WHEN db.update({'name': 'b'}) succeeds
+        THEN db.all() returns [{'name': 'b'}] and subsequent searches reflect the change
+        """
+        db = TinyDB(storage=MemoryStorage)
+        db.insert({'name': 'a'})
+
+        # Successful update
+        db.update({'name': 'b'})
+
+        # Data should be updated
+        assert db.all() == [{'name': 'b'}]
+
+        # Search should reflect the change
+        assert db.search(Query().name == 'b') == [{'name': 'b'}]
+        assert db.search(Query().name == 'a') == []
+
+    def test_ac5_import_succeeds_and_existing_tests_pass(self):
+        """
+        AC-5: GIVEN the fixed MemoryStorage module
+        WHEN imported in a Python 3.8+ environment with no extra packages
+        THEN import succeeds and all existing TinyDB tests pass
+        """
+        # This test passes if the module imports without error
+        # The existing test suite passing is verified by running pytest
+        from tinydb.storages import MemoryStorage
+        assert MemoryStorage is not None
+
+        # Verify basic functionality
+        storage = MemoryStorage()
+        assert storage.read() is None
+        storage.write({'_default': {1: {'name': 'test'}}})
+        data = storage.read()
+        assert data == {'_default': {1: {'name': 'test'}}}
+
+        # Verify deep copy behavior - modifying returned data shouldn't affect storage
+        data['_default'][1]['name'] = 'modified'
+        data2 = storage.read()
+        assert data2['_default'][1]['name'] == 'test'
+
+
+if __name__ == '__main__':
+    pytest.main([__file__, '-v'])
