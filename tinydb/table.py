@@ -836,8 +836,13 @@ class Table:
             for doc_id, doc in raw_table.items()
         }
 
-        # Perform the table update operation
-        updater(table)
+        # Perform the table update operation. If it fails, drop cached
+        # query results so later searches do not return stale data.
+        try:
+            updater(table)
+        except Exception:
+            self.clear_cache()
+            raise
 
         # Convert the document IDs back to strings.
         # This is required as some storages (most notably the JSON file format)
