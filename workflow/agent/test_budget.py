@@ -25,6 +25,9 @@ try:
 except agent.BudgetExceeded:
     pass
 assert agent.BUDGET["used"] == 1000  # refused call was never sent
+agent.set_budget(10_000, used=5_000)  # 2 x (prompt + 2600) > 5000 left: agent must answer now
+assert agent.budget_low([{"role": "user", "content": "hi"}], 2600)
+assert not agent.budget_low([{"role": "user", "content": "hi"}], 1000)
 print("budget ok")
 
 
