@@ -48,9 +48,3 @@ Follow a run: the issue gets a start/stop comment, the Actions run has one job p
 with a summary table, every job uploads its artifacts (`spec.md`, `design.md`, `diff.patch`, `test_report.md`,
 `pr.md`, `review.md`, `state.json`, agent transcripts), the PR description is `pr.md`, and each review is posted
 on the PR. The workflow never merges.
-
-## AI use
-
-Built with substantial help from Claude Code (Claude Opus 5.5): it drafted the workflow, agent code, prompts,
-ADR texts, issues, hidden tests and seeded PRs, and ran the experiments; I reviewed and edited all of it.
-The A1 SRS skill (`workflow/agent/prompts/srs_SKILL.md`) and the A2 `ARCHITECTURE.md` are my earlier work.
