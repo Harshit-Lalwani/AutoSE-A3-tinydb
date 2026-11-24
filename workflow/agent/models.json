@@ -1,0 +1,17 @@
+{
+  "providers": {
+    "nim": {"base_url": "https://integrate.api.nvidia.com/v1", "key_env": "NVIDIA_NIM_API_KEY"},
+    "openrouter": {"base_url": "https://openrouter.ai/api/v1", "key_env": "OPENROUTER_API_KEY"}
+  },
+  "roles": {
+    "builder": [
+      {"provider": "nim", "model": "nvidia/nemotron-3-ultra-550b-a55b"},
+      {"provider": "openrouter", "model": "nvidia/nemotron-3-ultra-550b-a55b:free"}
+    ],
+    "reviewer": [
+      {"provider": "nim", "model": "minimaxai/minimax-m3.1-flash",
+       "extra": {"extra_body": {"chat_template_kwargs": {"enable_thinking": false, "thinking": false}}}},
+      {"provider": "openrouter", "model": "google/gemma-4-31b-it:free"}
+    ]
+  }
+}

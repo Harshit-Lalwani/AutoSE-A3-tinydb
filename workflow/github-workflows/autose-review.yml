@@ -1,0 +1,59 @@
+# Stage 6: independent reviewer (ADR-008). Own job, fresh checkout of the PR head, read-only token.
+name: autose-review
+on:
+  workflow_call:
+    inputs:
+      pr: {type: string, required: true}
+      round: {type: number, default: 1}
+      variant: {type: string, default: isolated}     # isolated | informed (experiment E1)
+    secrets:
+      NVIDIA_NIM_API_KEY: {required: true}
+      OPENROUTER_API_KEY: {required: false}
+    outputs:
+      verdict: {value: "${{ jobs.review.outputs.verdict }}"}
+      category: {value: "${{ jobs.review.outputs.category }}"}
+
+jobs:
+  review:
+    name: review round ${{ inputs.round }} (PR ${{ inputs.pr }}, ${{ inputs.variant }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      verdict: ${{ steps.rev.outputs.verdict }}
+      category: ${{ steps.rev.outputs.category }}
+    steps:
+      - name: Checkout control code (main)
+        uses: actions/checkout@v4
+        with: {path: ctl, sparse-checkout: "workflow/agent\n.github/actions", persist-credentials: false}
+      - name: Checkout PR head (product code only, no credentials)
+        uses: actions/checkout@v4
+        with:
+          path: ws
+          ref: refs/pull/${{ inputs.pr }}/head
+          fetch-depth: 0
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/workflow/
+            !/architecture/
+            !/experiment/
+            !/results/
+            !/report.pdf
+            !/demo.mp4
+      - uses: ./ctl/.github/actions/autose-setup
+        with: {ws: ws}
+      - name: Review
+        id: rev
+        env:
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          /opt/autose/venv/bin/python ctl/workflow/agent/review.py --pr "${{ inputs.pr }}" \
+            --round "${{ inputs.round }}" --variant "${{ inputs.variant }}" --ws ws --art art --run-url "$RUN_URL"
+      - name: Upload review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: "autose-review-${{ inputs.round }}", path: art}

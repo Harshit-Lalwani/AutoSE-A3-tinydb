@@ -1,0 +1,91 @@
+# Stages 1-5 (or a fix round): one job, orchestrator.py state machine. Called by autose.yml.
+name: autose-stages
+on:
+  workflow_call:
+    inputs:
+      issue: {type: string, required: true}
+      variant: {type: string, default: default}
+      mode: {type: string, default: pipeline}        # pipeline | resume
+      job: {type: string, default: stages}
+      round: {type: number, default: 0}
+      from_stage: {type: string, default: implement}
+      branch: {type: string, default: ""}
+      prev_artifact: {type: string, default: ""}
+      review_artifact: {type: string, default: ""}
+    secrets:
+      NVIDIA_NIM_API_KEY: {required: true}
+      OPENROUTER_API_KEY: {required: false}
+    outputs:
+      released: {value: "${{ jobs.run.outputs.released }}"}
+      pr_number: {value: "${{ jobs.run.outputs.pr_number }}"}
+      branch: {value: "${{ jobs.run.outputs.branch }}"}
+
+jobs:
+  run:
+    name: ${{ inputs.job }} (issue ${{ inputs.issue }}, ${{ inputs.variant }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    outputs:
+      released: ${{ steps.out.outputs.released }}
+      pr_number: ${{ steps.out.outputs.pr_number }}
+      branch: ${{ steps.out.outputs.branch }}
+    steps:
+      - name: Checkout control code (main)
+        uses: actions/checkout@v4
+        with: {path: ctl, sparse-checkout: "workflow/agent\n.github/actions", persist-credentials: false}
+      - name: Checkout workspace (product code only, no credentials)
+        uses: actions/checkout@v4
+        with:
+          path: ws
+          ref: ${{ inputs.mode == 'pipeline' && 'main' || inputs.branch }}
+          fetch-depth: 0
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/workflow/
+            !/architecture/
+            !/experiment/
+            !/results/
+            !/report.pdf
+            !/demo.mp4
+      - run: git -C ws branch -f main origin/main 2>/dev/null || true
+      - uses: ./ctl/.github/actions/autose-setup
+        with: {ws: ws}
+      - name: Previous stage artifacts
+        if: inputs.prev_artifact != ''
+        uses: actions/download-artifact@v4
+        with: {name: "${{ inputs.prev_artifact }}", path: art}
+      - name: Review to address
+        if: inputs.review_artifact != ''
+        uses: actions/download-artifact@v4
+        with: {name: "${{ inputs.review_artifact }}", path: review}
+      - name: Run stages
+        id: orch
+        env:
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          fb=""; [ -f review/review.md ] && fb=review/review.md
+          /opt/autose/venv/bin/python ctl/workflow/agent/orchestrator.py --mode "${{ inputs.mode }}" \
+            --issue "${{ inputs.issue }}" --variant "${{ inputs.variant }}" --job "${{ inputs.job }}" \
+            --round "${{ inputs.round }}" --from-stage "${{ inputs.from_stage }}" --feedback "$fb" \
+            --ws ws --art art --tmp /tmp/autose --run-url "$RUN_URL"
+      - name: Outputs
+        id: out
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, pathlib
+          s = json.loads(pathlib.Path("art/state.json").read_text()) if pathlib.Path("art/state.json").exists() else {}
+          pr = s.get("pr", "")
+          print("released=" + ("true" if s.get("outcome") == "released" else "false"))
+          print("pr_number=" + (pr.rstrip("/").split("/")[-1] if pr else ""))
+          print("branch=" + s.get("branch", ""))
+          PY
+      - name: Upload stage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: "autose-${{ inputs.job }}", path: art, include-hidden-files: true}

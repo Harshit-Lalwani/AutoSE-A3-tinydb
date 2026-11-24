@@ -1,0 +1,22 @@
+name: autose setup
+description: Tool venv (tinydb dev deps + openai) and the credential-free sandbox user `agent` (ADR-005)
+inputs:
+  ws: {description: workspace (target repo checkout), required: true}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with: {python-version: "3.14"}
+    - uses: astral-sh/setup-uv@v5
+    - shell: bash
+      run: |
+        sudo mkdir -p /opt/autose && sudo chown "$(id -u):$(id -g)" /opt/autose
+        (cd "${{ inputs.ws }}" && uv export -q --frozen --only-group dev --no-emit-project --no-hashes) > /opt/autose/dev.txt
+        uv venv -q /opt/autose/venv --python 3.14
+        uv pip install -q --python /opt/autose/venv/bin/python -r /opt/autose/dev.txt openai==2.*
+        sudo useradd --create-home --shell /bin/bash agent
+        sudo mkdir -p /tmp/agent-home /tmp/autose && sudo chown agent /tmp/agent-home && sudo chmod 777 /tmp/autose
+        sudo chown -R agent "${{ inputs.ws }}"
+        sudo -u agent git config --global --add safe.directory '*'
+        echo "AUTOSE_SANDBOX_USER=agent" >> "$GITHUB_ENV"
+        echo "AUTOSE_AGENT_PATH=/opt/autose/venv/bin:/usr/local/bin:/usr/bin:/bin" >> "$GITHUB_ENV"

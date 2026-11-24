@@ -1,0 +1,106 @@
+# Issue in, reviewed pull request out. Design: architecture/ (ADR-002 control flow, ADR-010 triggers).
+name: autose
+on:
+  issues:
+    types: [labeled]          # label "autose" (or "autose-single", experiment E2)
+  issue_comment:
+    types: [created]          # "/autose" on an issue, "/autose review [informed]" on a PR
+permissions: {}
+concurrency:
+  group: autose-${{ github.event.issue.number }}-${{ github.event.label.name || 'comment' }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    if: >-
+      (github.event_name == 'issues' && startsWith(github.event.label.name, 'autose')) ||
+      (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/autose'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {contents: read, issues: read, pull-requests: read}
+    outputs:
+      ok: ${{ steps.gate.outputs.ok }}
+      mode: ${{ steps.gate.outputs.mode }}
+      number: ${{ steps.gate.outputs.number }}
+      variant: ${{ steps.gate.outputs.variant }}
+      review_variant: ${{ steps.gate.outputs.review_variant }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {sparse-checkout: workflow/agent, persist-credentials: false}
+      - id: gate
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: python3 workflow/agent/gate.py
+
+  stages:
+    needs: gate
+    if: needs.gate.outputs.ok == 'true' && needs.gate.outputs.mode == 'pipeline'
+    permissions: {contents: write, pull-requests: write, issues: write, actions: write}
+    uses: ./.github/workflows/autose-stages.yml
+    with: {issue: "${{ needs.gate.outputs.number }}", variant: "${{ needs.gate.outputs.variant }}", mode: pipeline, job: stages}
+    secrets: {NVIDIA_NIM_API_KEY: "${{ secrets.NVIDIA_NIM_API_KEY }}", OPENROUTER_API_KEY: "${{ secrets.OPENROUTER_API_KEY }}"}
+
+  review_1:
+    needs: [gate, stages]
+    if: needs.stages.outputs.released == 'true'
+    permissions: {contents: read, pull-requests: write, issues: read}
+    uses: ./.github/workflows/autose-review.yml
+    with: {pr: "${{ needs.stages.outputs.pr_number }}", round: 1, variant: isolated}
+    secrets: {NVIDIA_NIM_API_KEY: "${{ secrets.NVIDIA_NIM_API_KEY }}", OPENROUTER_API_KEY: "${{ secrets.OPENROUTER_API_KEY }}"}
+
+  fix_1:
+    needs: [gate, stages, review_1]
+    if: needs.review_1.outputs.verdict == 'request_changes'
+    permissions: {contents: write, pull-requests: write, issues: write, actions: write}
+    uses: ./.github/workflows/autose-stages.yml
+    with:
+      issue: "${{ needs.gate.outputs.number }}"
+      variant: "${{ needs.gate.outputs.variant }}"
+      mode: resume
+      job: fix_1
+      round: 1
+      from_stage: "${{ needs.review_1.outputs.category == 'approach' && 'design' || 'implement' }}"
+      branch: "${{ needs.stages.outputs.branch }}"
+      prev_artifact: autose-stages
+      review_artifact: autose-review-1
+    secrets: {NVIDIA_NIM_API_KEY: "${{ secrets.NVIDIA_NIM_API_KEY }}", OPENROUTER_API_KEY: "${{ secrets.OPENROUTER_API_KEY }}"}
+
+  review_2:
+    needs: [gate, stages, fix_1]
+    if: needs.fix_1.outputs.released == 'true'
+    permissions: {contents: read, pull-requests: write, issues: read}
+    uses: ./.github/workflows/autose-review.yml
+    with: {pr: "${{ needs.stages.outputs.pr_number }}", round: 2, variant: isolated}
+    secrets: {NVIDIA_NIM_API_KEY: "${{ secrets.NVIDIA_NIM_API_KEY }}", OPENROUTER_API_KEY: "${{ secrets.OPENROUTER_API_KEY }}"}
+
+  fix_2:
+    needs: [gate, stages, review_2]
+    if: needs.review_2.outputs.verdict == 'request_changes'
+    permissions: {contents: write, pull-requests: write, issues: write, actions: write}
+    uses: ./.github/workflows/autose-stages.yml
+    with:
+      issue: "${{ needs.gate.outputs.number }}"
+      variant: "${{ needs.gate.outputs.variant }}"
+      mode: resume
+      job: fix_2
+      round: 2
+      from_stage: "${{ needs.review_2.outputs.category == 'approach' && 'design' || 'implement' }}"
+      branch: "${{ needs.stages.outputs.branch }}"
+      prev_artifact: autose-fix_1
+      review_artifact: autose-review-2
+    secrets: {NVIDIA_NIM_API_KEY: "${{ secrets.NVIDIA_NIM_API_KEY }}", OPENROUTER_API_KEY: "${{ secrets.OPENROUTER_API_KEY }}"}
+
+  review_3:
+    needs: [gate, stages, fix_2]
+    if: needs.fix_2.outputs.released == 'true'
+    permissions: {contents: read, pull-requests: write, issues: read}
+    uses: ./.github/workflows/autose-review.yml
+    with: {pr: "${{ needs.stages.outputs.pr_number }}", round: 3, variant: isolated}
+    secrets: {NVIDIA_NIM_API_KEY: "${{ secrets.NVIDIA_NIM_API_KEY }}", OPENROUTER_API_KEY: "${{ secrets.OPENROUTER_API_KEY }}"}
+
+  review_only:
+    needs: gate
+    if: needs.gate.outputs.ok == 'true' && needs.gate.outputs.mode == 'review'
+    permissions: {contents: read, pull-requests: write, issues: read}
+    uses: ./.github/workflows/autose-review.yml
+    with: {pr: "${{ needs.gate.outputs.number }}", round: 0, variant: "${{ needs.gate.outputs.review_variant }}"}
+    secrets: {NVIDIA_NIM_API_KEY: "${{ secrets.NVIDIA_NIM_API_KEY }}", OPENROUTER_API_KEY: "${{ secrets.OPENROUTER_API_KEY }}"}

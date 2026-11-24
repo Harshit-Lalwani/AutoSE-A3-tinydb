@@ -3,7 +3,8 @@ name: Python CI
 on:
   push: {}
   pull_request:
-    branches: [ master ]
+    branches: [ main, master ]
+  workflow_dispatch: {}     # autose: pushes made with GITHUB_TOKEN do not trigger CI, so release dispatches it
 
 jobs:
   build:
@@ -18,12 +19,7 @@ jobs:
         - "3.12"
         - "3.13"
         - "3.14"
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        include:
-        - python-version: "pypy-3.9"
-          os: ubuntu-latest
-        - python-version: "pypy-3.10"
-          os: ubuntu-latest
+        os: [ubuntu-latest]   # autose fork: macOS/Windows/PyPy dropped to keep CI under 5 minutes
 
     steps:
     - uses: actions/checkout@v4
@@ -50,23 +46,3 @@ jobs:
         uv build
         uv run --with twine twine check dist/*
       if: ${{ contains(matrix.python-version, '3.14') }}
-    - name: Upload coverage result
-      if: ${{ matrix.os != 'windows-latest' }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        COVERALLS_FLAG_NAME: ${{ matrix.os }}-py${{ matrix.python-version }}
-        COVERALLS_PARALLEL: true
-      run: |
-         uv run coveralls
-
-  coveralls:
-    name: Indicate completion to coveralls.io
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-    - name: Install coveralls
-      run: pip3 install --upgrade coveralls
-    - name: Finished
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: coveralls --finish

@@ -18,15 +18,15 @@ flowchart TB
         GATE["gate job<br/>perms: issues:write, contents:read<br/>• who triggered? (write/admin only)<br/>• which mode? pipeline / review-only<br/>• which variant?"]
         subgraph STAGES["stages job (reusable stages.yml)<br/>perms: contents:write, pull-requests:write, issues:write, actions:write"]
             ORCH["orchestrator.py<br/>state machine + checks.py<br/>holds MODEL keys and GH_TOKEN"]
-            SPEC{{"Spec agent (stage 1)<br/>MiniMax M3.1 Flash<br/>tools: none (one call)<br/>input: issue + README + A1 SRS skill"}}
-            DES{{"Design agent (stage 2)<br/>MiniMax M3.1 Flash<br/>tools: bash (read-only*)<br/>input: spec ACs + ARCHITECTURE.md + repo"}}
-            IMP{{"Coder agent (stage 3)<br/>MiniMax M3.1 Flash<br/>tools: bash, write_file<br/>input: spec ACs + design.md (+ failures)"}}
-            TST{{"Tester agent (stage 4)<br/>MiniMax M3.1 Flash<br/>tools: bash, write_file<br/>input: spec ACs + repo"}}
-            REL["release.py (stage 5)<br/>no LLM: push, gh pr create,<br/>dispatch CI, wait"]
+            SPEC{{"Spec agent (stage 1)<br/>Nemotron-3 Ultra<br/>tools: none (one call)<br/>input: issue + README + A1 SRS skill"}}
+            DES{{"Design agent (stage 2)<br/>Nemotron-3 Ultra<br/>tools: bash (read-only*)<br/>input: spec ACs + ARCHITECTURE.md + repo"}}
+            IMP{{"Coder agent (stage 3)<br/>Nemotron-3 Ultra<br/>tools: bash, write_file<br/>input: spec ACs + design.md (+ failures)"}}
+            TST{{"Tester agent (stage 4)<br/>Nemotron-3 Ultra<br/>tools: bash, write_file<br/>input: spec ACs + repo"}}
+            REL["stage_release (stage 5)<br/>no LLM: push, gh pr create,<br/>dispatch CI, wait"]
         end
         subgraph REV["review job (reusable review.yml)<br/>perms: contents:read, pull-requests:write"]
             RORCH["review.py<br/>holds REVIEWER key + GH_TOKEN"]
-            RAG{{"Reviewer agent (stage 6)<br/>Nemotron-3 Ultra (other family)<br/>tools: bash (run anything, no creds)<br/>input: issue + diff + repo@PR head"}}
+            RAG{{"Reviewer agent (stage 6)<br/>MiniMax M3.1 Flash (other family)<br/>tools: bash (run anything, no creds)<br/>input: issue + diff + repo@PR head"}}
         end
         FIX["fix jobs (stages.yml again, mode=resume)<br/>back to design or implement"]
     end
@@ -57,12 +57,12 @@ read-only agent and discards any change it made (see ADR-005).
 
 | Agent | Stage | Model (fallback) | Tools | Sees | Never sees |
 |---|---|---|---|---|---|
-| Spec | 1 | MiniMax M3.1 Flash on NIM (Gemma-4 31B, free on OpenRouter) | none, one chat call | issue text, `README.rst`, A1 `SKILL.md` | code, other agents |
+| Spec | 1 | Nemotron-3 Ultra 550B on NIM (same model, free on OpenRouter) | none, one chat call | issue text, `README.rst`, A1 `SKILL.md` | code, other agents |
 | Design | 2 | same | `bash` in repo; changes discarded | spec ACs, `ARCHITECTURE.md`, repo | issue text (only via spec) |
 | Coder | 3 | same | `bash`, `write_file` | spec ACs, `design.md`, failing test output on retries | tester's reasoning; may not edit tester's test file |
 | Tester | 4 | same | `bash`, `write_file` | spec ACs, repo with the change | coder's conversation |
 | Release | 5 | none (code) | `git`, `gh` with `GITHUB_TOKEN` | artifacts | n/a |
-| Reviewer | 6 | Nemotron-3 Ultra on NIM (same model free on OpenRouter) | `bash` in a fresh checkout of the PR head; no credentials | issue text, `git diff main...HEAD`, repo | spec, design, test report, any transcript |
+| Reviewer | 6 | MiniMax M3.1 Flash, thinking off, on NIM (Gemma-4 31B free on OpenRouter) | `bash` in a fresh checkout of the PR head; no credentials | issue text, `git diff main...HEAD`, repo | spec, design, test report, any transcript |
 
 ## Credentials
 
