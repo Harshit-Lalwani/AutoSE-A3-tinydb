@@ -1,7 +1,7 @@
 name: autose setup
 description: Tool venv (tinydb dev deps + openai) and the credential-free sandbox user `agent` (ADR-005)
 inputs:
-  ws: {description: workspace (target repo checkout), required: true}
+  ws: {description: target repo checkout (copied to /srv/autose/ws), required: true}
 runs:
   using: composite
   steps:
@@ -16,7 +16,10 @@ runs:
         uv pip install -q --python /opt/autose/venv/bin/python -r /opt/autose/dev.txt openai==2.*
         sudo useradd --create-home --shell /bin/bash agent
         sudo mkdir -p /tmp/agent-home /tmp/autose && sudo chown agent /tmp/agent-home && sudo chmod 777 /tmp/autose
-        sudo chown -R agent "${{ inputs.ws }}"
-        sudo -u agent git config --global --add safe.directory '*'
+        # The sandbox user cannot enter /home/runner, so agents work on a copy outside it.
+        sudo mkdir -p /srv/autose && sudo cp -a "${{ inputs.ws }}" /srv/autose/ws
+        sudo chown -R agent /srv/autose/ws
+        (cd / && sudo -u agent git config --global --add safe.directory '*')
+        git config --global --add safe.directory '*'
         echo "AUTOSE_SANDBOX_USER=agent" >> "$GITHUB_ENV"
         echo "AUTOSE_AGENT_PATH=/opt/autose/venv/bin:/usr/local/bin:/usr/bin:/bin" >> "$GITHUB_ENV"
