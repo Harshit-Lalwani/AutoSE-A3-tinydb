@@ -316,6 +316,17 @@ class Query(QueryInstance):
             ('>', self._path, rhs)
         )
 
+    def between(self, low: Any, high: Any) -> QueryInstance:
+        """
+        Test a dict value for being between ``low`` and ``high``.
+
+        >>> Query().f1.between(18, 65)
+        """
+        return self._generate_test(
+            lambda value: low <= value < high,
+            ('between', self._path, low, high)
+        )
+
     def __ge__(self, rhs: Any) -> QueryInstance:
         """
         Test a dict value for being greater than or equal to another value.
