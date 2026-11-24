@@ -145,6 +145,9 @@ class Run:
         for attempt in (1, 2):
             t0 = time.time()
             res = self.agent("design", "builder", system, user + feedback, ["bash"], STEPS["design"])
+            written = self.ws / "design.md"
+            if "```json" not in res.final and written.is_file():
+                res.final = written.read_text()  # it wrote design.md with bash instead of replying (ADR-013)
             discarded = checks.changed_files(self.ws)
             if discarded:  # read-only role: throw away anything it changed
                 sandbox_run("git reset -q --hard HEAD && git clean -qfd", self.ws)
