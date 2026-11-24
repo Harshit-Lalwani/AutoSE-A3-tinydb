@@ -191,6 +191,16 @@ def run_agent(role: str, model_role: str, system: str, user: str, tools: list[st
                                                         "tool-call syntax. Reply now with your complete final answer "
                                                         "as plain text in the required format."})
             r = client.chat(messages, tools=None, max_tokens=max_tokens)
+            if "<tool_call>" in (r.choices[0].message.content or "")[:200]:  # model ignored "no tools": ask once more
+                record({"event": "assistant", "content": r.choices[0].message.content, "tool_calls": [], "usage": None})
+                if r.usage:
+                    res.prompt_tokens += r.usage.prompt_tokens or 0
+                    res.completion_tokens += r.usage.completion_tokens or 0
+                messages += [{"role": "assistant", "content": r.choices[0].message.content},
+                             {"role": "user", "content": "Tools are disabled and that tool call was not run. Write "
+                                                         "your complete final answer now, using only what you "
+                                                         "already know."}]
+                r = client.chat(messages, tools=None, max_tokens=max_tokens)
         else:
             r = client.chat(messages, tools=tool_specs, max_tokens=max_tokens)
         res.steps += 1
