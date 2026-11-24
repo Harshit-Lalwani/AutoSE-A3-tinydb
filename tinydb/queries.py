@@ -329,6 +329,44 @@ class Query(QueryInstance):
             ('>=', self._path, rhs)
         )
 
+    def between(self, low: Any, high: Any) -> QueryInstance:
+        """
+        Test a dict value for being within an inclusive range [low, high].
+
+        Matches SQL BETWEEN semantics: returns documents where low <= value <= high.
+        If low > high, no documents match (returns empty result).
+        Documents missing the field are excluded.
+
+        >>> Query().age.between(18, 65)
+
+        Matches::
+
+            {'age': 18}
+            {'age': 30}
+            {'age': 65}
+
+        Does not match::
+
+            {'age': 17}
+            {'age': 66}
+            {'name': 'John'}  # missing field
+
+        :param low: The lower bound (inclusive)
+        :param high: The upper bound (inclusive)
+        :return: A QueryInstance for the range query
+        """
+        # SQL BETWEEN semantics: if low > high, match nothing
+        if low > high:
+            return self._generate_test(
+                lambda value: False,
+                ('between', self._path, freeze(low), freeze(high))
+            )
+
+        return self._generate_test(
+            lambda value: low <= value <= high,
+            ('between', self._path, freeze(low), freeze(high))
+        )
+
     def exists(self) -> QueryInstance:
         """
         Test for a dict where a provided key exists.
