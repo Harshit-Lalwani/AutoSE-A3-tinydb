@@ -72,7 +72,7 @@ jobs:
           /opt/autose/venv/bin/python ctl/workflow/agent/orchestrator.py --mode "${{ inputs.mode }}" \
             --issue "${{ inputs.issue }}" --variant "${{ inputs.variant }}" --job "${{ inputs.job }}" \
             --round "${{ inputs.round }}" --from-stage "${{ inputs.from_stage }}" --feedback "$fb" \
-            --ws ws --art art --tmp /tmp/autose --run-url "$RUN_URL"
+            --ws /srv/autose/ws --art art --tmp /tmp/autose --run-url "$RUN_URL"
       - name: Outputs
         id: out
         if: always()

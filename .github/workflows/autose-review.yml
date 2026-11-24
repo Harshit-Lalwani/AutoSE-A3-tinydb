@@ -52,7 +52,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           /opt/autose/venv/bin/python ctl/workflow/agent/review.py --pr "${{ inputs.pr }}" \
-            --round "${{ inputs.round }}" --variant "${{ inputs.variant }}" --ws ws --art art --run-url "$RUN_URL"
+            --round "${{ inputs.round }}" --variant "${{ inputs.variant }}" --ws /srv/autose/ws --art art --run-url "$RUN_URL"
       - name: Upload review
         if: always()
         uses: actions/upload-artifact@v4
