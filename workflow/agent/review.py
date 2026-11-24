@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 import checks
-from agent import run_agent, sandbox_run, truncate
+from agent import MODELS, BUDGET, AgentResult, BudgetExceeded, run_agent, sandbox_run, set_budget, truncate
 
 PROMPTS = Path(__file__).parent / "prompts"
 
@@ -70,10 +70,16 @@ def main():
         if d and d.exists():
             user += f"\nThe implementer's design:\n<design>\n{d.read_text()}\n</design>\n"
     user += "\nReview the pull request now. The repository is checked out at the PR head."
-    res = run_agent("reviewer", "reviewer", (PROMPTS / "reviewer.md").read_text(), user, ["bash"], ws, 30,
-                    art / "logs" / f"review-{a.round}.jsonl")
+    set_budget(MODELS["budget"]["review_tokens"])
+    try:
+        res = run_agent("reviewer", "reviewer", (PROMPTS / "reviewer.md").read_text(), user, ["bash"], ws, 30,
+                        art / "logs" / f"review-{a.round}.jsonl")
+        v = decide(res.final, res.commands)
+    except BudgetExceeded as e:  # no verdict: the run ends and the human decides (no fix round)
+        res = AgentResult(final=f"Review stopped: {e}.", steps=0, stopped_reason="budget")
+        v = {"verdict": "incomplete", "category": "none", "findings": [], "requirements": [],
+             "summary": f"Review stopped before a verdict: {e}."}
     sandbox_run("git reset -q --hard HEAD && git clean -qfd", ws)  # nothing the reviewer changed is kept
-    v = decide(res.final, res.commands)
     prose = re.sub(r"```json.*?```", "", res.final, flags=re.S).strip()
     findings = "\n".join(f"- **{f.get('severity', '?')}** `{f.get('file', '')}:{f.get('line', '')}` "
                          f"{f.get('problem', '')}  \n  evidence: {f.get('evidence', '')}" for f in v.get("findings", []))
@@ -94,7 +100,8 @@ def main():
                                                  "commands": res.commands, "steps": res.steps,
                                                  "prompt_tokens": res.prompt_tokens,
                                                  "completion_tokens": res.completion_tokens,
-                                                 "sha": pr["headRefOid"]}, indent=2))
+                                                 "sha": pr["headRefOid"], "budget_used": BUDGET["used"],
+                                                 "budget_limit": BUDGET["limit"]}, indent=2))
     if not a.no_post:
         subprocess.run(["gh", "pr", "review", str(a.pr), "--repo", a.repo, "--comment", "--body-file",
                         str(art / "review.md")], check=True)

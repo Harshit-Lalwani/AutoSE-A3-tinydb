@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 import checks
-from agent import run_agent, sandbox_run, truncate
+from agent import MODELS, BUDGET, BudgetExceeded, run_agent, sandbox_run, set_budget, truncate
 
 HERE = Path(__file__).parent
 PROMPTS = HERE / "prompts"
@@ -38,6 +38,9 @@ class Run:
             "issue": a.issue, "variant": a.variant, "branch": a.branch, "history": [],
             "tokens": {"prompt": 0, "completion": 0}, "review_round": 0}
         self.job = a.job
+        # Hard token budget for the whole run (stages job + fix jobs share it via state.json).
+        set_budget(MODELS["budget"]["run_tokens"], (self.state.get("budget") or {}).get("used", 0))
+        self.current = "spec"
         self.test_file = f"tests/test_autose_issue_{a.issue}.py"
 
     # ---------- bookkeeping ----------
@@ -96,6 +99,7 @@ class Run:
 
     # ---------- stage 1 ----------
     def stage_spec(self):
+        self.current = "spec"
         title, body = self.issue()
         system = (PROMPTS / "srs_SKILL.md").read_text() + "\n\n" + (PROMPTS / "spec_addendum.md").read_text()
         readme = (self.ws / "README.rst").read_text()[:6000]
@@ -133,6 +137,7 @@ class Run:
 
     # ---------- stage 2 ----------
     def stage_design(self, extra=""):
+        self.current = "design"
         acs, _ = self.acs_text()
         system = (PROMPTS / "design.md").read_text()
         user = acs + extra + "\n\nRead ARCHITECTURE.md, explore the code, then give design.md."
@@ -167,6 +172,7 @@ class Run:
             sandbox_run('cat > "$1"', self.ws, stdin=content, args=[self.test_file])
 
     def stage_implement(self, feedback):
+        self.current = "implement"
         acs, _ = self.acs_text()
         design = (self.art / "design.md").read_text()
         system = (PROMPTS / "coder.md").read_text()
@@ -193,6 +199,7 @@ class Run:
         return ok, report, res
 
     def stage_test(self, extra="", run_tester=True):
+        self.current = "test"
         acs, ac_list = self.acs_text()
         if self.a.variant != "single" and run_tester:
             system = (PROMPTS / "tester.md").read_text().replace("TEST_FILE", f"`{self.test_file}`")
@@ -382,11 +389,21 @@ class Run:
             self.stage_release()
             self.state["outcome"] = "released"
             return 0
+        except BudgetExceeded as e:
+            art = {"spec": "spec.md", "design": "design.md", "implement": "diff.patch", "test": "test_report.md"}
+            path = self.art / art.get(self.current, "summary.md")
+            prev = path.read_text() if path.exists() else ""
+            path.write_text(prev + f"\n\n## Why this stage stopped\n\nStage `{self.current}`: {e}.\n")
+            self.log_stage(self.current, False, str(e))
+            self.state["outcome"] = f"stopped: {e}"
+            self.comment(f"**autose stopped** ({self.job}, stage {self.current}): {e}")
+            return 1
         except Stop as e:
             self.state["outcome"] = f"stopped: {e}"
             self.comment(f"**autose stopped** ({self.job}): {e}\n\nEach stage's artifact explains why.")
             return 1
         finally:
+            self.state["budget"] = {"limit": BUDGET["limit"], "used": BUDGET["used"]}
             self.save()
             self.write_summary()
 
@@ -395,7 +412,8 @@ class Run:
                 f"{h.get('prompt_tokens', 0) + h.get('completion_tokens', 0)} | {h.get('seconds')} | "
                 f"{str(h['summary'])[:120]} |" for h in self.state["history"]]
         txt = ("| job | stage | attempt | check | tokens | s | summary |\n|---|---|---|---|---|---|---|\n" +
-               "\n".join(rows) + f"\n\nOutcome: {self.state.get('outcome')}  \nTokens: {self.state['tokens']}\n")
+               "\n".join(rows) + f"\n\nOutcome: {self.state.get('outcome')}  \nTokens: {self.state['tokens']}  \n"
+               f"Budget: {BUDGET['used']:,} of {BUDGET['limit']:,} tokens used\n")
         self.write("summary.md", txt)
         if os.environ.get("GITHUB_STEP_SUMMARY"):
             with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:

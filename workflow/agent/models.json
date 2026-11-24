@@ -3,6 +3,7 @@
     "nim": {"base_url": "https://integrate.api.nvidia.com/v1", "key_env": "NVIDIA_NIM_API_KEY"},
     "openrouter": {"base_url": "https://openrouter.ai/api/v1", "key_env": "OPENROUTER_API_KEY"}
   },
+  "budget": {"_note": "hard token caps, our spend limit (ADR-012)", "run_tokens": 2500000, "review_tokens": 400000},
   "roles": {
     "builder": [
       {"provider": "nim", "model": "nvidia/nemotron-3-ultra-550b-a55b"},

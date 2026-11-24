@@ -56,6 +56,28 @@ def sandbox_run(cmd: str, cwd: Path, timeout: int = CMD_TIMEOUT, stdin: str | No
         return 124, out + f"\n[command timed out after {timeout}s]"
 
 
+class BudgetExceeded(Exception):
+    """The hard token budget (our spending limit, ADR-012) would be exceeded by the next call."""
+
+
+# One budget per process: shared by every agent of a stages/fix job, or by one review.
+BUDGET = {"limit": None, "used": 0}
+
+
+def set_budget(limit: int, used: int = 0):
+    BUDGET.update(limit=limit, used=used)
+
+
+def charge_check(messages, max_tokens):
+    """Refuse a call whose worst case (prompt estimate + max output) would cross the limit."""
+    if BUDGET["limit"] is None:
+        return
+    worst = len(json.dumps(messages, default=str)) // 3 + max_tokens
+    if BUDGET["used"] + worst > BUDGET["limit"]:
+        raise BudgetExceeded(f"token budget exhausted: used {BUDGET['used']:,} of {BUDGET['limit']:,}, "
+                             f"next call could need up to {worst:,}")
+
+
 class ModelClient:
     """Tries each (provider, model) of a role in order: 3 attempts each with backoff, then the next."""
 
@@ -70,6 +92,7 @@ class ModelClient:
         return OpenAI(base_url=prov["base_url"], api_key=key, timeout=600, max_retries=0)
 
     def chat(self, messages, tools=None, max_tokens=8000):
+        charge_check(messages, max_tokens)
         last_err = None
         while self.idx < len(self.candidates):
             cand = self.candidates[self.idx]
@@ -83,6 +106,8 @@ class ModelClient:
                     if tools:
                         kw["tools"] = tools
                     r = self._client(cand).chat.completions.create(**kw)
+                    if r.usage:
+                        BUDGET["used"] += r.usage.total_tokens or 0
                     if not r.choices:
                         raise RuntimeError(f"empty response: {r}")
                     tag = f'{cand["provider"]}:{cand["model"]}'
