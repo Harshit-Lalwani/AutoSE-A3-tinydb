@@ -17,7 +17,7 @@ jobs:
   review:
     name: review round ${{ inputs.round }} (PR ${{ inputs.pr }}, ${{ inputs.variant }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     outputs:
       verdict: ${{ steps.rev.outputs.verdict }}
       category: ${{ steps.rev.outputs.category }}
