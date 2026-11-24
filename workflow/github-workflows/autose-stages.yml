@@ -49,7 +49,9 @@ jobs:
             !/results/
             !/report.pdf
             !/demo.mp4
-      - run: git -C ws branch -f main origin/main 2>/dev/null || true
+      # checks diff against the commit the PR branched from, not the newest main: otherwise files that
+      # changed on main later look out of scope and get "reverted" to main's newer version (PR #20)
+      - run: git -C ws branch -f main "$(git -C ws merge-base HEAD origin/main)" 2>/dev/null || true
       - uses: ./ctl/.github/actions/autose-setup
         with: {ws: ws}
       - name: Previous stage artifacts
