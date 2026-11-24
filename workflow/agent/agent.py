@@ -68,11 +68,20 @@ def set_budget(limit: int, used: int = 0):
     BUDGET.update(limit=limit, used=used)
 
 
+def worst_case(messages, max_tokens) -> int:
+    return len(json.dumps(messages, default=str)) // 3 + max_tokens
+
+
+def budget_low(messages, max_tokens) -> bool:
+    """True when the budget cannot pay for one more tool step *and* the final answer after it."""
+    return BUDGET["limit"] is not None and BUDGET["used"] + 2 * worst_case(messages, max_tokens) > BUDGET["limit"]
+
+
 def charge_check(messages, max_tokens):
     """Refuse a call whose worst case (prompt estimate + max output) would cross the limit."""
     if BUDGET["limit"] is None:
         return
-    worst = len(json.dumps(messages, default=str)) // 3 + max_tokens
+    worst = worst_case(messages, max_tokens)
     if BUDGET["used"] + worst > BUDGET["limit"]:
         raise BudgetExceeded(f"token budget exhausted: used {BUDGET['used']:,} of {BUDGET['limit']:,}, "
                              f"next call could need up to {worst:,}")
@@ -150,10 +159,11 @@ def run_agent(role: str, model_role: str, system: str, user: str, tools: list[st
 
     record({"event": "start", "system": system, "user": user, "tools": tools})
     while True:
-        over_budget = res.steps >= max_steps or (res.prompt_tokens + res.completion_tokens) > max_total_tokens
+        over_budget = (res.steps >= max_steps or (res.prompt_tokens + res.completion_tokens) > max_total_tokens
+                       or budget_low(messages, max_tokens))  # answer while the run budget can still pay for it
         if over_budget and tool_specs:
             res.stopped_reason = "budget"
-            messages.append({"role": "user", "content": "Your step budget is used up. Do not call tools and do not write "
+            messages.append({"role": "user", "content": "Your step or token budget is used up. Do not call tools and do not write "
                                                         "tool-call syntax. Reply now with your complete final answer "
                                                         "as plain text in the required format."})
             r = client.chat(messages, tools=None, max_tokens=max_tokens)
