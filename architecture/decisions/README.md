@@ -17,3 +17,4 @@ marked *Superseded by ADR-0xx* and a new ADR explains what we learned.
 | [ADR-009](ADR-009.md) | D9 Safety and failures | Accepted |
 | [ADR-010](ADR-010.md) | D10 Triggers | Accepted |
 | [ADR-011](ADR-011.md) | D6 Models (after measuring reasoning cost) | Accepted |
+| [ADR-012](ADR-012.md) | D9 Cost: hard token budget as spending limit | Accepted |

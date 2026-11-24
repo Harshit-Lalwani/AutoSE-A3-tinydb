@@ -22,9 +22,12 @@ CS6.403 AutoSE, Monsoon 2026, Assignment 3. Roll number 2023111028.
 | Spec, design, coder, tester | `nvidia/nemotron-3-ultra-550b-a55b` | NVIDIA NIM (free tier); fallback OpenRouter `:free` |
 | Reviewer | `minimaxai/minimax-m3.1-flash`, thinking off | NVIDIA NIM (free tier); fallback `google/gemma-4-31b-it:free` on OpenRouter |
 
-Why: [ADR-011](architecture/decisions/ADR-011.md) (supersedes ADR-006). All model use was on free tiers, so the
-spending limit is zero by construction (the OpenRouter key is a free-tier key with no credits; NIM free tier
-has no billing). Token totals per run are in `results/results.csv`.
+Why: [ADR-011](architecture/decisions/ADR-011.md) (supersedes ADR-006).
+
+**Spending limit.** All model use is on free tiers (NIM free tier; OpenRouter key without credits), so money
+spent is zero. As the hard limit we use tokens ([ADR-012](architecture/decisions/ADR-012.md)): 2.5M tokens per
+pipeline run and 400k per review, enforced in code before every model call. Token totals are in
+`results/results.csv`.
 
 ## How to trigger the workflow
 
