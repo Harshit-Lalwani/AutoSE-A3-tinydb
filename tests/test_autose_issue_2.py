@@ -1,0 +1,149 @@
+"""
+Tests for accepting numeric string document IDs in Table.update() and Table.remove().
+
+This implements the acceptance criteria from the design document:
+- AC-1: update with string IDs ['1', '2'] updates docs 1 and 2, returns [1, 2]
+- AC-2: update with string IDs ['1', '999'] where 999 doesn't exist updates only doc 1, returns [1]
+- AC-3: remove with string IDs ['2', '3'] removes docs 2 and 3, returns [2, 3]
+- AC-4: remove with string IDs ['2', '999'] where 999 doesn't exist removes only doc 2, returns [2]
+- AC-5: integer IDs still work identically to before
+- A-1: non-numeric string IDs raise ValueError
+"""
+
+import pytest
+from tinydb import TinyDB
+from tinydb.storages import MemoryStorage
+
+
+class TestUpdateWithStringDocIds:
+    """Tests for Table.update() accepting numeric string document IDs."""
+
+    def setup_method(self):
+        """Create a fresh table with documents having doc_ids 1, 2, 3."""
+        self.db = TinyDB(storage=MemoryStorage)
+        self.table = self.db.table('_default')
+        # Insert 3 documents - they will get doc_ids 1, 2, 3
+        self.table.insert({'a': 1})
+        self.table.insert({'a': 2})
+        self.table.insert({'a': 3})
+
+    def teardown_method(self):
+        self.db.close()
+
+    def test_ac1_update_with_string_ids(self):
+        """AC-1: update with doc_ids=['1', '2'] updates docs 1 and 2, returns [1, 2]."""
+        result = self.table.update({'a': 10}, doc_ids=['1', '2'])
+        assert result == [1, 2]
+        # Verify the documents were actually updated
+        doc1 = self.table.get(doc_id=1)
+        doc2 = self.table.get(doc_id=2)
+        doc3 = self.table.get(doc_id=3)
+        assert doc1['a'] == 10
+        assert doc2['a'] == 10
+        assert doc3['a'] == 3  # unchanged
+
+    def test_ac2_update_with_nonexistent_string_id(self):
+        """AC-2: update with doc_ids=['1', '999'] where 999 doesn't exist updates only doc 1, returns [1]."""
+        result = self.table.update({'a': 10}, doc_ids=['1', '999'])
+        assert result == [1]
+        # Verify only doc 1 was updated
+        doc1 = self.table.get(doc_id=1)
+        doc2 = self.table.get(doc_id=2)
+        doc3 = self.table.get(doc_id=3)
+        assert doc1['a'] == 10
+        assert doc2['a'] == 2  # unchanged
+        assert doc3['a'] == 3  # unchanged
+
+    def test_ac5_update_with_integer_ids(self):
+        """AC-5: update with integer doc_ids=[1, 2] works identically to before."""
+        result = self.table.update({'a': 10}, doc_ids=[1, 2])
+        assert result == [1, 2]
+        doc1 = self.table.get(doc_id=1)
+        doc2 = self.table.get(doc_id=2)
+        doc3 = self.table.get(doc_id=3)
+        assert doc1['a'] == 10
+        assert doc2['a'] == 10
+        assert doc3['a'] == 3  # unchanged
+
+    def test_update_with_mixed_string_and_int_ids(self):
+        """Update with mixed string and integer IDs works."""
+        result = self.table.update({'a': 10}, doc_ids=['1', 2])
+        assert result == [1, 2]
+        doc1 = self.table.get(doc_id=1)
+        doc2 = self.table.get(doc_id=2)
+        assert doc1['a'] == 10
+        assert doc2['a'] == 10
+
+    def test_update_with_non_numeric_string_raises_value_error(self):
+        """A-1: Non-numeric string IDs (e.g., 'abc') raise ValueError."""
+        with pytest.raises(ValueError):
+            self.table.update({'a': 10}, doc_ids=['abc'])
+
+    def test_update_with_empty_string_raises_value_error(self):
+        """A-1: Empty string ID raises ValueError."""
+        with pytest.raises(ValueError):
+            self.table.update({'a': 10}, doc_ids=[''])
+
+
+class TestRemoveWithStringDocIds:
+    """Tests for Table.remove() accepting numeric string document IDs."""
+
+    def setup_method(self):
+        """Create a fresh table with documents having doc_ids 1, 2, 3."""
+        self.db = TinyDB(storage=MemoryStorage)
+        self.table = self.db.table('_default')
+        # Insert 3 documents - they will get doc_ids 1, 2, 3
+        self.table.insert({'a': 1})
+        self.table.insert({'a': 2})
+        self.table.insert({'a': 3})
+
+    def teardown_method(self):
+        self.db.close()
+
+    def test_ac3_remove_with_string_ids(self):
+        """AC-3: remove with doc_ids=['2', '3'] removes docs 2 and 3, returns [2, 3]."""
+        result = self.table.remove(doc_ids=['2', '3'])
+        assert result == [2, 3]
+        # Verify the documents were actually removed
+        assert self.table.get(doc_id=1) is not None
+        assert self.table.get(doc_id=2) is None
+        assert self.table.get(doc_id=3) is None
+        assert len(self.table) == 1
+
+    def test_ac4_remove_with_nonexistent_string_id(self):
+        """AC-4: remove with doc_ids=['2', '999'] where 999 doesn't exist removes only doc 2, returns [2]."""
+        result = self.table.remove(doc_ids=['2', '999'])
+        assert result == [2]
+        # Verify only doc 2 was removed
+        assert self.table.get(doc_id=1) is not None
+        assert self.table.get(doc_id=2) is None
+        assert self.table.get(doc_id=3) is not None
+        assert len(self.table) == 2
+
+    def test_ac5_remove_with_integer_ids(self):
+        """AC-5: remove with integer doc_ids=[3] works identically to before."""
+        result = self.table.remove(doc_ids=[3])
+        assert result == [3]
+        assert self.table.get(doc_id=1) is not None
+        assert self.table.get(doc_id=2) is not None
+        assert self.table.get(doc_id=3) is None
+        assert len(self.table) == 2
+
+    def test_remove_with_mixed_string_and_int_ids(self):
+        """Remove with mixed string and integer IDs works."""
+        result = self.table.remove(doc_ids=['1', 2])
+        assert result == [1, 2]
+        assert self.table.get(doc_id=1) is None
+        assert self.table.get(doc_id=2) is None
+        assert self.table.get(doc_id=3) is not None
+        assert len(self.table) == 1
+
+    def test_remove_with_non_numeric_string_raises_value_error(self):
+        """A-1: Non-numeric string IDs (e.g., 'abc') raise ValueError."""
+        with pytest.raises(ValueError):
+            self.table.remove(doc_ids=['abc'])
+
+    def test_remove_with_empty_string_raises_value_error(self):
+        """A-1: Empty string ID raises ValueError."""
+        with pytest.raises(ValueError):
+            self.table.remove(doc_ids=[''])
